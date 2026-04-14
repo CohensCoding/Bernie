@@ -2,11 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card as UiCard, CardHeader } from '@/components/ui/Card';
 import { getCardDetail } from '@/lib/db/cards';
-import { ExtractionReviewForm } from '@/components/ingest/ExtractionReviewForm';
-import { emptyExtractionPayload } from '@/types/extraction';
-import { buildMockExtraction } from '@/lib/ingest/mockExtraction';
-import { headers } from 'next/headers';
-import type { ExtractionPayload } from '@/types/extraction';
+import { IngestReviewClient } from '@/components/ingest/IngestReviewClient';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,8 +22,6 @@ export default async function IngestReviewPage({
     error = e instanceof Error ? e.message : 'Unknown error';
   }
   if (!error && !detail) notFound();
-
-  const extraction = detail ? await getRealExtraction(detail.card.id) : emptyExtractionPayload();
 
   const assets =
     detail?.assets.map((a) => ({
@@ -56,9 +50,7 @@ export default async function IngestReviewPage({
             <span className="text-fg">Review</span>
           </div>
           <div className="mt-2 text-2xl font-semibold tracking-tight text-fg">Review extracted details</div>
-          <div className="mt-2 text-sm text-fg-muted">
-            Mock extraction for now. Edit fields, then save to create a transaction and update the card.
-          </div>
+          <div className="mt-2 text-sm text-fg-muted">Edit fields, then save to create the transaction and update the card.</div>
         </div>
         {detail ? (
           <Link
@@ -84,38 +76,11 @@ export default async function IngestReviewPage({
             subtitle={`${detail.card.year ?? '—'} · ${detail.card.brand ?? '—'} · ${detail.card.set_name ?? '—'}`}
           />
           <div className="mt-5">
-            <ExtractionReviewForm cardId={detail.card.id} assets={assets} extraction={extraction} />
+            <IngestReviewClient cardId={detail.card.id} assets={assets} />
           </div>
         </UiCard>
       ) : null}
     </div>
   );
-}
-
-async function getRealExtraction(cardId: string): Promise<ExtractionPayload> {
-  const h = await headers();
-  const host = h.get('host');
-  const proto = h.get('x-forwarded-proto') ?? 'http';
-  const base = host ? `${proto}://${host}` : '';
-
-  try {
-    const res = await fetch(`${base}/api/ingest/extract?cardId=${cardId}`, { cache: 'no-store' });
-    if (!res.ok) {
-      // Dev-only fallback to mock extraction
-      if (process.env.NODE_ENV === 'development') {
-        const d = await getCardDetail(cardId);
-        return d ? buildMockExtraction(d) : emptyExtractionPayload();
-      }
-      return emptyExtractionPayload();
-    }
-    const json = (await res.json()) as any;
-    return (json?.extraction as ExtractionPayload) ?? emptyExtractionPayload();
-  } catch {
-    if (process.env.NODE_ENV === 'development') {
-      const d = await getCardDetail(cardId);
-      return d ? buildMockExtraction(d) : emptyExtractionPayload();
-    }
-    return emptyExtractionPayload();
-  }
 }
 

@@ -75,8 +75,7 @@ export async function extractFromAssets(assets: AssetForExtraction[]): Promise<E
       max_output_tokens: 1200,
     } as any);
 
-    // openai-node exposes output_text for Responses API; fallback to reading content if needed
-    const text = (resp as any).output_text ?? '';
+    const text = extractOutputText(resp);
     let json: unknown = null;
     try {
       json = typeof text === 'string' && text.length ? JSON.parse(text) : null;
@@ -89,5 +88,20 @@ export async function extractFromAssets(assets: AssetForExtraction[]): Promise<E
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Extractor failed.' };
   }
+}
+
+function extractOutputText(resp: unknown): string {
+  const r: any = resp as any;
+  if (typeof r?.output_text === 'string' && r.output_text.length) return r.output_text;
+
+  // Fallback: walk response.output -> message content blocks
+  const output = Array.isArray(r?.output) ? r.output : [];
+  for (const item of output) {
+    const content = Array.isArray(item?.content) ? item.content : [];
+    for (const c of content) {
+      if (c?.type === 'output_text' && typeof c?.text === 'string') return c.text;
+    }
+  }
+  return '';
 }
 

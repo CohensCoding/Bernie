@@ -139,14 +139,19 @@ export function ExtractionReviewForm({
   cardId,
   assets,
   extraction,
+  extractionStatus,
+  extractionError,
 }: {
   cardId: string;
   assets: Array<{ id: string; signed_url: string | null; label: string }>;
   extraction: ExtractionPayload;
+  extractionStatus: 'extracting' | 'parsed' | 'failed';
+  extractionError: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ackEmptyWarning, setAckEmptyWarning] = useState(false);
 
   const defaultValues: ReviewValues = useMemo(
     () => ({
@@ -193,11 +198,41 @@ export function ExtractionReviewForm({
   });
 
   const selectedAssets = watch('asset_ids');
+  const wTitle = watch('title_raw');
+  const wPlayer = watch('player_name');
+  const wTotal = watch('total_cost');
+  const wPurchase = watch('purchase_price');
+  const wPlatform = watch('platform');
+  const wDate = watch('purchase_date');
+
+  const hasIdentity = Boolean((wTitle ?? '').trim().length || (wPlayer ?? '').trim().length);
+  const hasMoney = (wTotal ?? 0) > 0 || (wPurchase ?? 0) > 0;
+  const hasAnyPurchaseMeta = Boolean((wPlatform ?? '').trim().length || (wDate ?? '').trim().length);
+
+  const saveWouldBeEmpty = !hasIdentity && !hasMoney && !hasAnyPurchaseMeta;
+  const extractionFailed = extractionStatus === 'failed';
+  const savingBlocked =
+    busy ||
+    extractionStatus === 'extracting' ||
+    (extractionFailed && saveWouldBeEmpty) ||
+    (saveWouldBeEmpty && !ackEmptyWarning);
 
   const onSubmit: SubmitHandler<ReviewValues> = async (values) => {
     setBusy(true);
     setError(null);
     try {
+      const identity = Boolean(nullIfEmpty(values.title_raw) || nullIfEmpty(values.player_name));
+      const money =
+        dollarsToCents(values.total_cost) > 0 ||
+        dollarsToCents(values.purchase_price) > 0 ||
+        dollarsToCents(values.taxes) > 0 ||
+        dollarsToCents(values.shipping) > 0;
+      const meta = Boolean(nullIfEmpty(values.platform) || nullIfEmpty(values.purchase_date) || nullIfEmpty(values.source_url));
+
+      if (extractionStatus === 'failed' && !identity && !money && !meta) {
+        throw new Error('Extraction failed. Fill in at least a title/player and purchase total before saving.');
+      }
+
       const body = {
         card_id: cardId,
         card: {
@@ -261,6 +296,39 @@ export function ExtractionReviewForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-6">
+      {extractionStatus === 'extracting' ? (
+        <div className="rounded-xl border border-border bg-bg-muted p-3 text-sm text-fg-muted">
+          Extracting from screenshots… this may take a few seconds.
+        </div>
+      ) : null}
+
+      {extractionStatus === 'failed' && extractionError ? (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
+          Extraction failed: {extractionError}
+        </div>
+      ) : null}
+
+      {saveWouldBeEmpty ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+          <div className="font-medium text-amber-100">Heads up</div>
+          <div className="mt-1 text-amber-100/80">
+            This would save with a blank card identity and a $0.00 transaction. Add at least a title/player and purchase
+            total (or acknowledge below).
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <input
+              id="ackEmpty"
+              type="checkbox"
+              checked={ackEmptyWarning}
+              onChange={(e) => setAckEmptyWarning(e.target.checked)}
+            />
+            <label htmlFor="ackEmpty" className="text-sm text-amber-100/90">
+              I understand, save anyway
+            </label>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <section className="space-y-4">
@@ -409,15 +477,11 @@ export function ExtractionReviewForm({
 
           <button
             type="submit"
-            disabled={busy}
+            disabled={savingBlocked}
             className="w-full rounded-xl bg-accent/20 px-4 py-3 text-sm text-fg ring-1 ring-accent/30 hover:bg-accent/25 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy ? 'Saving…' : isDirty ? 'Save changes' : 'Save'}
+            {busy ? 'Saving…' : extractionStatus === 'extracting' ? 'Extracting…' : isDirty ? 'Save changes' : 'Save'}
           </button>
-
-          <div className="text-xs text-fg-muted">
-            This step uses a <span className="text-fg">mock extraction</span>. Next step will plug in a real extractor.
-          </div>
         </aside>
       </div>
     </form>

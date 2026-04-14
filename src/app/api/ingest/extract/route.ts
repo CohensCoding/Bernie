@@ -21,6 +21,7 @@ export async function GET(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'Missing cardId' }, { status: 400 });
 
   const supabase = getSupabaseServerClient();
+  const debugId = crypto.randomUUID();
 
   try {
     let q = supabase
@@ -56,15 +57,30 @@ export async function GET(req: Request) {
       });
     }
 
+    console.log('[extract]', { debugId, cardId: parsed.data.cardId, assetCount: signedAssets.length, assetPaths: signedAssets.map((a) => a.path) });
+
     const result = await extractFromAssets(
       signedAssets.map((a) => ({ id: a.id, bucket: a.bucket, path: a.path, signed_url: a.signed_url })),
     );
-    if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 });
+    if (!result.ok) {
+      console.log('[extract_failed]', { debugId, error: result.error });
+      return NextResponse.json({ error: result.error, debugId }, { status: 500 });
+    }
 
     // Validate output once more defensively
     const validated = ExtractionPayloadSchema.safeParse(result.extraction);
     if (!validated.success) {
-      return NextResponse.json({ error: 'Malformed extractor output.' }, { status: 500 });
+      console.log('[extract_malformed]', { debugId, issues: validated.error.issues });
+      return NextResponse.json({ error: 'Malformed extractor output.', debugId }, { status: 500 });
+    }
+
+    const nonNullCount = countNonNull(validated.data);
+    if (nonNullCount < 3) {
+      console.log('[extract_empty]', { debugId, nonNullCount });
+      return NextResponse.json(
+        { error: 'Extraction returned too little usable data. Try different screenshots.', debugId },
+        { status: 422 },
+      );
     }
 
     // Persist raw extraction to each used asset (best effort)
@@ -75,9 +91,11 @@ export async function GET(req: Request) {
         extraction_model: result.model,
         extraction_confidence: avgConfidence,
         extraction_raw: {
+          debug_id: debugId,
           provider: 'openai',
           model: result.model,
           extracted_at: new Date().toISOString(),
+          inputs: signedAssets.map((a) => ({ id: a.id, bucket: a.bucket, path: a.path })),
           extraction: validated.data,
         },
       })
@@ -86,9 +104,11 @@ export async function GET(req: Request) {
         signedAssets.map((a) => a.id),
       );
 
-    return NextResponse.json({ ok: true, model: result.model, extraction: validated.data });
+    return NextResponse.json({ ok: true, debugId, model: result.model, extraction: validated.data });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : 'Unknown error' }, { status: 500 });
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    console.log('[extract_exception]', { debugId, error: msg });
+    return NextResponse.json({ error: msg, debugId }, { status: 500 });
   }
 }
 
@@ -100,5 +120,16 @@ function averageConfidence(extraction: any): number | null {
   }
   if (!vals.length) return null;
   return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function countNonNull(extraction: any): number {
+  let c = 0;
+  for (const v of Object.values(extraction)) {
+    const value = (v as any)?.value;
+    if (value === null || value === undefined) continue;
+    if (typeof value === 'string' && value.trim().length === 0) continue;
+    c += 1;
+  }
+  return c;
 }
 
