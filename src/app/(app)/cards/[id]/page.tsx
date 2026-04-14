@@ -214,6 +214,15 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
                       }))}
                     />
                   </div>
+                  <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
+                    <div className="text-xs text-fg-muted">Next: run extraction (mock) → review → save.</div>
+                    <Link
+                      href={`/ingest/review?cardId=${detail.card.id}`}
+                      className="rounded-xl bg-accent/20 px-3 py-2 text-sm text-fg ring-1 ring-accent/30 hover:bg-accent/25"
+                    >
+                      Review extracted details
+                    </Link>
+                  </div>
                 </div>
 
                 {detail.assets.length === 0 ? (
