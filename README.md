@@ -42,9 +42,7 @@ Bernie **does not** include any of the following yet:
 
 ### 1) Install dependencies
 
-```bash
-npm install
-```
+You’ll run `npm install` as part of the “Run locally” section below.
 
 ### 2) Create the database schema + seed data (Supabase)
 
@@ -82,13 +80,14 @@ Important notes:
 - The **service role key is server-only**. Do not expose it to the browser.
 - `.env.local` is gitignored by default.
 
-### 4) Run the app locally
+## Run locally
 
 ```bash
+npm install
 npm run dev
 ```
 
-Then open `http://localhost:3000`.
+Then open [`http://localhost:3000/dashboard`](http://localhost:3000/dashboard).
 
 ## Repo notes
 
