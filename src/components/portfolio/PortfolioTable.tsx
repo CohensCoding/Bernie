@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { PortfolioRow } from '@/lib/db/portfolio';
 import { formatUsdFromCents } from '@/lib/money';
 
@@ -22,7 +23,13 @@ function norm(s: string | null | undefined) {
   return (s ?? '').toString().trim().toLowerCase();
 }
 
+function normKey(s: string | null | undefined) {
+  const t = (s ?? '').toString().trim();
+  return t.length ? t : 'Unknown';
+}
+
 export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
+  const router = useRouter();
   const [query, setQuery] = useState('');
   const [sport, setSport] = useState('All');
   const [graded, setGraded] = useState<'All' | 'Graded' | 'Raw'>('All');
@@ -31,14 +38,14 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
 
   const sports = useMemo(() => {
     const set = new Set<string>();
-    for (const r of rows) set.add((r.card.sport ?? 'Unknown').trim() || 'Unknown');
+    for (const r of rows) set.add(normKey(r.card.sport));
     return ['All', ...Array.from(set).sort((a, b) => a.localeCompare(b))];
   }, [rows]);
 
   const filtered = useMemo(() => {
     const q = norm(query);
     return rows.filter((r) => {
-      if (sport !== 'All' && (r.card.sport ?? 'Unknown') !== sport) return false;
+      if (sport !== 'All' && normKey(r.card.sport) !== sport) return false;
       if (graded === 'Graded' && !r.card.graded) return false;
       if (graded === 'Raw' && r.card.graded) return false;
 
@@ -103,6 +110,11 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
     }
   }
 
+  function sortIndicator(key: SortKey) {
+    if (sortKey !== key) return null;
+    return <span className="ml-1 text-[10px] text-fg-muted">{sortDir === 'asc' ? '▲' : '▼'}</span>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -143,32 +155,32 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
           <thead className="bg-bg-muted">
             <tr className="text-left text-xs uppercase tracking-wide text-fg-muted">
               <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('player')}>
-                Player
+                Player{sortIndicator('player')}
               </th>
               <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('year')}>
-                Year
+                Year{sortIndicator('year')}
               </th>
               <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('brandSet')}>
-                Brand / Set
+                Brand / Set{sortIndicator('brandSet')}
               </th>
               <th className="px-4 py-3">Parallel</th>
               <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('grade')}>
-                Grade
+                Grade{sortIndicator('grade')}
               </th>
               <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('purchasePrice')}>
-                Purchase
+                Purchase{sortIndicator('purchasePrice')}
               </th>
               <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('totalCost')}>
-                Total cost
+                Total cost{sortIndicator('totalCost')}
               </th>
               <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('purchaseDate')}>
-                Date
+                Date{sortIndicator('purchaseDate')}
               </th>
               <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('sport')}>
-                Sport
+                Sport{sortIndicator('sport')}
               </th>
               <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('team')}>
-                Team
+                Team{sortIndicator('team')}
               </th>
             </tr>
           </thead>
@@ -178,7 +190,11 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
               const t = r.latestTransaction;
               const gradeLabel = c.graded ? `${c.grading_company ?? ''} ${c.grade ?? ''}`.trim() : 'Raw';
               return (
-                <tr key={c.id} className="border-t border-border hover:bg-bg-elevated/60">
+                <tr
+                  key={c.id}
+                  className="border-t border-border hover:bg-bg-elevated/60 cursor-pointer"
+                  onClick={() => router.push(`/cards/${c.id}`)}
+                >
                   <td className="px-4 py-3 text-sm text-fg">
                     <Link href={`/cards/${c.id}`} className="hover:underline underline-offset-4">
                       {c.player_name ?? 'Unknown'}

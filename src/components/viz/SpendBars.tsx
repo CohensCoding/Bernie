@@ -1,6 +1,6 @@
 'use client';
 
-import { formatUsdFromCents } from '@/lib/money';
+import { formatUsdCompactFromCents, formatUsdFromCents } from '@/lib/money';
 
 export function SpendBars({
   rows,
@@ -15,7 +15,8 @@ export function SpendBars({
           <div className="flex items-baseline justify-between gap-3">
             <div className="truncate text-sm text-fg">{r.key}</div>
             <div className="shrink-0 text-xs text-fg-muted">
-              {formatUsdFromCents(r.spendCents)} · {r.count}
+              <span className="hidden sm:inline">{formatUsdFromCents(r.spendCents)}</span>
+              <span className="sm:hidden">{formatUsdCompactFromCents(r.spendCents)}</span> · {r.count}
             </div>
           </div>
           <div className="h-2 w-full rounded-full bg-bg-muted">

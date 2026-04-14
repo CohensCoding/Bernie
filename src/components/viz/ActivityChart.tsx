@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { formatUsdFromCents } from '@/lib/money';
+import { formatUsdCompactFromCents, formatUsdFromCents } from '@/lib/money';
 
 type Point = { month: string; spendCents: number; count: number };
 
@@ -52,7 +52,7 @@ export function ActivityChart({ points }: { points: Point[] }) {
           fontSize={12}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(v) => `$${Math.round(Number(v) / 100)}`}
+          tickFormatter={(v) => formatUsdCompactFromCents(Number(v))}
         />
         <Tooltip
           contentStyle={{

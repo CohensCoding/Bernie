@@ -7,7 +7,13 @@ import { ActivityChart } from '@/components/viz/ActivityChart';
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const data = await getDashboardData();
+  let data: Awaited<ReturnType<typeof getDashboardData>> | null = null;
+  let error: string | null = null;
+  try {
+    data = await getDashboardData();
+  } catch (e) {
+    error = e instanceof Error ? e.message : 'Unknown error';
+  }
 
   return (
     <div className="space-y-8">
@@ -18,6 +24,21 @@ export default async function DashboardPage() {
         </div>
       </div>
 
+      {error ? (
+        <Card>
+          <CardHeader title="Setup needed" subtitle="Connect Supabase to load your portfolio" />
+          <div className="mt-4 space-y-2 text-sm text-fg-muted">
+            <div>{error}</div>
+            <div>
+              Create <span className="text-fg">.env.local</span> from <span className="text-fg">.env.example</span>,
+              then run <span className="text-fg">supabase/schema.sql</span> and <span className="text-fg">supabase/seed.sql</span>{' '}
+              in Supabase SQL editor.
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      {!data ? null : (
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader title="Total cards" subtitle="Unique cards logged" />
@@ -44,7 +65,9 @@ export default async function DashboardPage() {
           <div className="mt-4 text-3xl font-semibold text-fg">{data.kpis.rawCards}</div>
         </Card>
       </section>
+      )}
 
+      {!data ? null : (
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader title="Purchase activity" subtitle="Spend by month (seed data)" />
@@ -63,7 +86,9 @@ export default async function DashboardPage() {
           </div>
         </Card>
       </section>
+      )}
 
+      {!data ? null : (
       <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader title="Spend by team" subtitle="Top teams" />
@@ -84,6 +109,7 @@ export default async function DashboardPage() {
           </div>
         </Card>
       </section>
+      )}
     </div>
   );
 }

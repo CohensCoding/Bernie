@@ -5,7 +5,13 @@ import { PortfolioTable } from '@/components/portfolio/PortfolioTable';
 export const dynamic = 'force-dynamic';
 
 export default async function PortfolioPage() {
-  const rows = await getPortfolioRows();
+  let rows: Awaited<ReturnType<typeof getPortfolioRows>> | null = null;
+  let error: string | null = null;
+  try {
+    rows = await getPortfolioRows();
+  } catch (e) {
+    error = e instanceof Error ? e.message : 'Unknown error';
+  }
 
   return (
     <div className="space-y-8">
@@ -17,9 +23,21 @@ export default async function PortfolioPage() {
       </div>
 
       <Card>
-        <CardHeader title="Cards" subtitle={`${rows.length} cards`} />
+        <CardHeader title="Cards" subtitle={rows ? `${rows.length} cards` : '—'} />
         <div className="mt-4">
-          <PortfolioTable rows={rows} />
+          {error ? (
+            <div className="space-y-2 text-sm text-fg-muted">
+              <div className="text-fg">Setup needed</div>
+              <div>{error}</div>
+              <div>
+                Create <span className="text-fg">.env.local</span> from <span className="text-fg">.env.example</span>,
+                then run <span className="text-fg">supabase/schema.sql</span> and <span className="text-fg">supabase/seed.sql</span>{' '}
+                in Supabase SQL editor.
+              </div>
+            </div>
+          ) : rows ? (
+            <PortfolioTable rows={rows} />
+          ) : null}
         </div>
       </Card>
     </div>
