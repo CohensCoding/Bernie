@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { Card as UiCard, CardHeader } from '@/components/ui/Card';
 import { getCardDetail } from '@/lib/db/cards';
 import { formatUsdFromCents } from '@/lib/money';
+import { UploadScreenshots } from '@/components/assets/UploadScreenshots';
 
 export const dynamic = 'force-dynamic';
 
@@ -199,9 +200,25 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
             <UiCard>
               <CardHeader title="Assets" subtitle="Linked screenshots and source files" />
               <div className="mt-4 space-y-3">
+                <div className="rounded-xl border border-border bg-bg-muted p-4">
+                  <div className="text-sm font-medium text-fg">Upload screenshots</div>
+                  <div className="mt-1 text-xs text-fg-muted">Add 1–3 screenshots and attach to this card (optionally a transaction).</div>
+                  <div className="mt-4">
+                    <UploadScreenshots
+                      cardId={detail.card.id}
+                      transactions={detail.transactions.map((t) => ({
+                        id: t.id,
+                        label: `${t.platform ?? 'Platform'} · ${t.purchase_date ?? '—'} · ${formatUsdFromCents(
+                          t.total_cost_cents,
+                        )}`,
+                      }))}
+                    />
+                  </div>
+                </div>
+
                 {detail.assets.length === 0 ? (
                   <div className="rounded-xl border border-border bg-bg-muted p-4 text-sm text-fg-muted">
-                    No assets linked yet. Screenshot upload will be added in a later step.
+                    No assets linked yet.
                   </div>
                 ) : (
                   detail.assets.map((a) => (
@@ -216,8 +233,26 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
                             {a.mime_type ?? '—'}
                             {a.size_bytes ? ` · ${Math.round(a.size_bytes / 1024)} KB` : ''}
                           </div>
+                          {a.signed_url ? (
+                            <a
+                              href={a.signed_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-2 inline-block text-xs text-accent hover:underline underline-offset-4"
+                            >
+                              Open image
+                            </a>
+                          ) : null}
                         </div>
                       </div>
+                      {a.signed_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={a.signed_url}
+                          alt="Screenshot"
+                          className="mt-3 w-full rounded-xl border border-border object-cover"
+                        />
+                      ) : null}
                     </div>
                   ))
                 )}

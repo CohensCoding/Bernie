@@ -4,7 +4,7 @@ import { getSupabaseServerClient } from '@/lib/supabase/server';
 export type CardDetail = {
   card: Card;
   transactions: CardTransaction[];
-  assets: CardAsset[];
+  assets: Array<CardAsset & { signed_url?: string | null }>;
 };
 
 export async function getCardDetail(cardId: string): Promise<CardDetail | null> {
@@ -29,10 +29,20 @@ export async function getCardDetail(cardId: string): Promise<CardDetail | null> 
     .order('created_at', { ascending: false });
   if (assetError) throw new Error(assetError.message);
 
+  const assetsWithUrls: Array<CardAsset & { signed_url?: string | null }> = [];
+  for (const a of (assets ?? []) as CardAsset[]) {
+    let signed_url: string | null = null;
+    if (a.bucket && a.path) {
+      const { data: signed, error: signedErr } = await supabase.storage.from(a.bucket).createSignedUrl(a.path, 60 * 60);
+      if (!signedErr) signed_url = signed?.signedUrl ?? null;
+    }
+    assetsWithUrls.push({ ...a, signed_url });
+  }
+
   return {
     card: card as Card,
     transactions: (txs ?? []) as CardTransaction[],
-    assets: (assets ?? []) as CardAsset[],
+    assets: assetsWithUrls,
   };
 }
 
