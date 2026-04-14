@@ -201,8 +201,10 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
               <CardHeader title="Assets" subtitle="Linked screenshots and source files" />
               <div className="mt-4 space-y-3">
                 <div className="rounded-xl border border-border bg-bg-muted p-4">
-                  <div className="text-sm font-medium text-fg">Upload screenshots</div>
-                  <div className="mt-1 text-xs text-fg-muted">Add 1–3 screenshots and attach to this card (optionally a transaction).</div>
+                  <div className="text-sm font-medium text-fg">Add screenshots (secondary)</div>
+                  <div className="mt-1 text-xs text-fg-muted">
+                    Attach additional screenshots to an existing card, optionally linking them to a transaction.
+                  </div>
                   <div className="mt-4">
                     <UploadScreenshots
                       cardId={detail.card.id}
@@ -215,7 +217,7 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
                     />
                   </div>
                   <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
-                    <div className="text-xs text-fg-muted">Next: run extraction (mock) → review → save.</div>
+                    <div className="text-xs text-fg-muted">Re-run extraction and review updates when needed.</div>
                     <Link
                       href={`/ingest/review?cardId=${detail.card.id}`}
                       className="rounded-xl bg-accent/20 px-3 py-2 text-sm text-fg ring-1 ring-accent/30 hover:bg-accent/25"

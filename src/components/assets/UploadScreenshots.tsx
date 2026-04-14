@@ -6,9 +6,11 @@ import { useRouter } from 'next/navigation';
 export function UploadScreenshots({
   cardId,
   transactions,
+  onUploaded,
 }: {
   cardId: string;
   transactions: Array<{ id: string; label: string }>;
+  onUploaded?: (assets: Array<{ id: string; path: string }>) => void;
 }) {
   const router = useRouter();
   const [transactionId, setTransactionId] = useState<string>('');
@@ -44,6 +46,7 @@ export function UploadScreenshots({
       const res = await fetch('/api/assets/upload', { method: 'POST', body: fd });
       const json = (await res.json()) as any;
       if (!res.ok) throw new Error(json?.error ?? 'Upload failed.');
+      onUploaded?.((json?.assets ?? []) as Array<{ id: string; path: string }>);
 
       // Refresh server-rendered page data
       router.refresh();
