@@ -6,6 +6,17 @@ begin;
 -- Extensions
 create extension if not exists pgcrypto;
 
+-- updated_at helper
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
 -- Enums
 do $$
 begin
@@ -55,6 +66,15 @@ create table if not exists public.cards (
   updated_at timestamptz not null default now()
 );
 
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'cards_set_updated_at') then
+    create trigger cards_set_updated_at
+    before update on public.cards
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
 create table if not exists public.card_transactions (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid null,
@@ -88,6 +108,15 @@ create table if not exists public.card_transactions (
   )
 );
 
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'card_transactions_set_updated_at') then
+    create trigger card_transactions_set_updated_at
+    before update on public.card_transactions
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
 create table if not exists public.card_assets (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid null,
@@ -118,6 +147,15 @@ create table if not exists public.card_assets (
     card_id is not null or transaction_id is not null
   )
 );
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'card_assets_set_updated_at') then
+    create trigger card_assets_set_updated_at
+    before update on public.card_assets
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
 
 -- Indexes for dashboard/table filtering
 create index if not exists cards_player_name_idx on public.cards (player_name);

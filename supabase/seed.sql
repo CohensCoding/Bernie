@@ -2,6 +2,11 @@
 
 begin;
 
+-- Make seed re-runnable
+truncate table public.card_assets restart identity;
+truncate table public.card_transactions restart identity cascade;
+truncate table public.cards restart identity cascade;
+
 -- Cards
 insert into public.cards (
   id, title_raw, player_name, sport, team,
