@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: theme(colors.bg.DEFAULT);
+  color: theme(colors.fg.DEFAULT);
+}
+
+* {
+  border-color: theme(colors.border);
+}
+
