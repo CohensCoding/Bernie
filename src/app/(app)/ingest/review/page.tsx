@@ -5,6 +5,8 @@ import { getCardDetail } from '@/lib/db/cards';
 import { ExtractionReviewForm } from '@/components/ingest/ExtractionReviewForm';
 import { emptyExtractionPayload } from '@/types/extraction';
 import { buildMockExtraction } from '@/lib/ingest/mockExtraction';
+import { headers } from 'next/headers';
+import type { ExtractionPayload } from '@/types/extraction';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +27,7 @@ export default async function IngestReviewPage({
   }
   if (!error && !detail) notFound();
 
-  const extraction = detail ? buildMockExtraction(detail) : emptyExtractionPayload();
+  const extraction = detail ? await getRealExtraction(detail.card.id) : emptyExtractionPayload();
 
   const assets =
     detail?.assets.map((a) => ({
@@ -88,5 +90,32 @@ export default async function IngestReviewPage({
       ) : null}
     </div>
   );
+}
+
+async function getRealExtraction(cardId: string): Promise<ExtractionPayload> {
+  const h = await headers();
+  const host = h.get('host');
+  const proto = h.get('x-forwarded-proto') ?? 'http';
+  const base = host ? `${proto}://${host}` : '';
+
+  try {
+    const res = await fetch(`${base}/api/ingest/extract?cardId=${cardId}`, { cache: 'no-store' });
+    if (!res.ok) {
+      // Dev-only fallback to mock extraction
+      if (process.env.NODE_ENV === 'development') {
+        const d = await getCardDetail(cardId);
+        return d ? buildMockExtraction(d) : emptyExtractionPayload();
+      }
+      return emptyExtractionPayload();
+    }
+    const json = (await res.json()) as any;
+    return (json?.extraction as ExtractionPayload) ?? emptyExtractionPayload();
+  } catch {
+    if (process.env.NODE_ENV === 'development') {
+      const d = await getCardDetail(cardId);
+      return d ? buildMockExtraction(d) : emptyExtractionPayload();
+    }
+    return emptyExtractionPayload();
+  }
 }
 

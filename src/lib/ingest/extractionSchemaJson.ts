@@ -1,0 +1,81 @@
+// JSON Schema used for OpenAI Structured Outputs (text.format json_schema)
+// Keep aligned with `src/types/extraction.ts`
+
+export const ExtractionPayloadJsonSchema = {
+  name: 'BernieExtractionPayload',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    required: [
+      'title_raw',
+      'player_name',
+      'sport',
+      'team',
+      'year',
+      'brand',
+      'set_name',
+      'subset',
+      'card_number',
+      'parallel',
+      'serial_number',
+      'print_run',
+      'rookie',
+      'auto',
+      'patch',
+      'graded',
+      'grading_company',
+      'grade',
+      'purchase_price',
+      'taxes',
+      'shipping',
+      'total_cost',
+      'purchase_date',
+      'platform',
+      'source_url',
+      'notes',
+    ],
+    properties: {
+      title_raw: field({ type: 'string' }),
+      player_name: field({ type: 'string' }),
+      sport: field({ type: 'string' }),
+      team: field({ type: 'string' }),
+      year: field({ type: 'integer' }),
+      brand: field({ type: 'string' }),
+      set_name: field({ type: 'string' }),
+      subset: field({ type: 'string' }),
+      card_number: field({ type: 'string' }),
+      parallel: field({ type: 'string' }),
+      serial_number: field({ type: 'integer' }),
+      print_run: field({ type: 'integer' }),
+      rookie: field({ type: 'boolean' }),
+      auto: field({ type: 'boolean' }),
+      patch: field({ type: 'boolean' }),
+      graded: field({ type: 'boolean' }),
+      grading_company: field({ type: 'string' }),
+      grade: field({ type: 'string' }),
+      purchase_price: field({ type: 'number' }),
+      taxes: field({ type: 'number' }),
+      shipping: field({ type: 'number' }),
+      total_cost: field({ type: 'number' }),
+      purchase_date: field({ type: 'string' }),
+      platform: field({ type: 'string' }),
+      source_url: field({ type: 'string' }),
+      notes: field({ type: 'string' }),
+    },
+  },
+} as const;
+
+function field(valueSchema: Record<string, unknown>) {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: ['value', 'confidence', 'evidence'],
+    properties: {
+      value: { anyOf: [valueSchema, { type: 'null' }] },
+      confidence: { anyOf: [{ type: 'number', minimum: 0, maximum: 1 }, { type: 'null' }] },
+      evidence: { anyOf: [{ type: 'array', items: { type: 'string' } }, { type: 'null' }] },
+    },
+  };
+}
+
