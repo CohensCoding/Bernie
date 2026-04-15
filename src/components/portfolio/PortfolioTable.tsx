@@ -620,7 +620,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${selectedIds.length > 0 ? 'pb-20 sm:pb-0' : ''}`}>
       {/* Primary toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <input
@@ -743,8 +743,9 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
         </div>
       ) : null}
 
+      {/* Desktop/tablet contextual bar (keeps layout consistent) */}
       {selectedIds.length > 0 ? (
-        <div className="rounded-2xl border border-accent/25 bg-accent/[0.06] px-3 py-3 sm:flex sm:items-center sm:justify-between">
+        <div className="hidden rounded-2xl border border-accent/25 bg-accent/[0.06] px-3 py-3 sm:flex sm:items-center sm:justify-between">
           <div className="flex items-center justify-between gap-3 sm:justify-start">
             <div className="text-sm font-medium text-fg">
               {selectedIds.length} <span className="text-fg-muted">selected</span>
@@ -974,10 +975,10 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
 
           {/* Desktop/tablet table layout */}
           <div className="hidden sm:block max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-border/80">
-            <table className="w-full table-fixed border-separate border-spacing-0">
+            <table className="min-w-[980px] w-full table-auto border-separate border-spacing-0">
             <thead className="bg-bg-muted/50">
               <tr className="text-left text-[10px] uppercase tracking-wide text-fg-muted/90">
-                <th className="px-3 py-2.5 w-10">
+                  <th className="px-3 py-2.5 w-10">
                   <input
                     type="checkbox"
                     checked={allVisibleSelected}
@@ -1128,12 +1129,12 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                       </td>
                     ) : null}
                 {visibleCols.year ? (
-                  <td className={`px-3 py-2.5 text-sm text-fg ${MOBILE_PRIMARY.year ? '' : 'hidden sm:table-cell'}`}>
+                    <td className={`px-3 py-2.5 text-sm text-fg ${MOBILE_PRIMARY.year ? '' : 'hidden sm:table-cell'}`}>
                     {c.year ?? '—'}
                   </td>
                 ) : null}
                     {visibleCols.brandSet ? (
-                  <td
+                    <td
                     className={`truncate px-3 py-2.5 text-sm text-fg ${MOBILE_PRIMARY.brandSet ? '' : 'hidden sm:table-cell'}`}
                   >
                     {setDisplayLabel(c)}
@@ -1169,12 +1170,12 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                       </td>
                     ) : null}
                     {visibleCols.totalCost ? (
-                      <td className="px-3 py-2.5 text-sm tabular-nums text-fg">
+                    <td className="px-3 py-2.5 text-sm tabular-nums text-fg whitespace-nowrap">
                         {t ? formatUsdFromCents(t.total_cost_cents) : '—'}
                       </td>
                     ) : null}
                     {visibleCols.purchaseDate ? (
-                      <td className="px-3 py-2.5 text-sm tabular-nums text-fg">{t?.purchase_date ?? '—'}</td>
+                    <td className="px-3 py-2.5 text-sm tabular-nums text-fg whitespace-nowrap">{t?.purchase_date ?? '—'}</td>
                     ) : null}
                 {visibleCols.sport ? (
                   <td className={`px-3 py-2.5 text-sm text-fg ${MOBILE_PRIMARY.sport ? '' : 'hidden sm:table-cell'}`}>
@@ -1381,6 +1382,51 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
             </div>
           </div>
         </>
+      ) : null}
+
+      {/* Mobile sticky selection bar (prevents “scroll to top” bulk actions) */}
+      {selectedIds.length > 0 ? (
+        <div className="fixed inset-x-0 bottom-0 z-[55] border-t border-border/70 bg-bg/85 px-3 py-3 backdrop-blur sm:hidden">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold text-fg">{selectedIds.length} selected</div>
+              <div className="text-xs text-fg-muted">Bulk actions</div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelected({})}
+                className="rounded-2xl border border-border/70 bg-bg-muted/35 px-3 py-2 text-sm font-medium text-fg transition hover:bg-bg-muted/60"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkApplySport(false);
+                  setBulkApplyTeam(false);
+                  setBulkSport('');
+                  setBulkTeam('');
+                  setBulkError(null);
+                  setBulkEditOpen(true);
+                }}
+                className="rounded-2xl border border-border/70 bg-bg-muted/35 px-3 py-2 text-sm font-medium text-fg transition hover:bg-bg-muted/60"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkError(null);
+                  setConfirmBulkDelete(true);
+                }}
+                className="rounded-2xl bg-red-500/90 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-500"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {bulkEditOpen ? (
