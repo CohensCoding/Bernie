@@ -35,8 +35,8 @@ export function SpendSportDonut({ rows }: { rows: Row[] }) {
   }
 
   return (
-    <div className="flex flex-col items-stretch gap-6 lg:flex-row lg:items-center">
-      <div className="mx-auto h-[200px] w-[200px] shrink-0 sm:h-[220px] sm:w-[220px]">
+    <div className="flex flex-col gap-6">
+      <div className="mx-auto h-[180px] w-[180px] shrink-0 sm:h-[200px] sm:w-[200px]">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -66,23 +66,26 @@ export function SpendSportDonut({ rows }: { rows: Row[] }) {
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <ul className="min-w-0 flex-1 space-y-2">
+
+      <ul className="w-full space-y-2">
         {data.map((d, i) => (
           <li
             key={d.name}
-            className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-bg-muted/25 px-3 py-2.5"
+            className="flex gap-3 rounded-xl border border-border/50 bg-bg-muted/25 px-3 py-3 sm:items-start"
           >
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: SLICE_COLORS[i % SLICE_COLORS.length] }}
-                aria-hidden
-              />
-              <span className="truncate text-sm text-fg">{d.name}</span>
+            <span
+              className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full sm:mt-2"
+              style={{ backgroundColor: SLICE_COLORS[i % SLICE_COLORS.length] }}
+              aria-hidden
+            />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium leading-snug text-fg break-words">{d.name}</div>
+              <div className="mt-1 text-xs leading-relaxed text-fg-muted">
+                {d.pct.toFixed(0)}% of spend · {d.count} {d.count === 1 ? 'card' : 'cards'}
+              </div>
             </div>
-            <div className="shrink-0 text-right text-sm tabular-nums">
-              <div className="font-medium text-fg">{formatUsdFromCents(d.value)}</div>
-              <div className="text-xs text-fg-muted">{d.pct.toFixed(0)}% · {d.count} cards</div>
+            <div className="shrink-0 pt-0.5 text-right">
+              <div className="text-sm font-semibold tabular-nums text-fg">{formatUsdFromCents(d.value)}</div>
             </div>
           </li>
         ))}
