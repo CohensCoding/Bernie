@@ -7,10 +7,12 @@ export function UploadScreenshots({
   cardId,
   transactions,
   onUploaded,
+  allowTransactionLink = true,
 }: {
   cardId: string;
   transactions: Array<{ id: string; label: string }>;
   onUploaded?: (assets: Array<{ id: string; path: string }>) => void;
+  allowTransactionLink?: boolean;
 }) {
   const router = useRouter();
   const [transactionId, setTransactionId] = useState<string>('');
@@ -21,6 +23,7 @@ export function UploadScreenshots({
   const fileCount = files?.length ?? 0;
   const canSubmit = fileCount > 0 && fileCount <= 3 && !busy;
 
+  const showTransactionSelect = allowTransactionLink && transactions.length > 0;
   const txOptions = useMemo(() => [{ id: '', label: 'No transaction' }, ...transactions], [transactions]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -38,7 +41,7 @@ export function UploadScreenshots({
 
     const fd = new FormData();
     fd.set('card_id', cardId);
-    if (transactionId) fd.set('transaction_id', transactionId);
+    if (showTransactionSelect && transactionId) fd.set('transaction_id', transactionId);
     for (const f of Array.from(files)) fd.append('files', f);
 
     setBusy(true);
@@ -79,20 +82,24 @@ export function UploadScreenshots({
           </div>
         </div>
 
-        <div className="lg:col-span-4">
-          <label className="text-[11px] font-medium uppercase tracking-wide text-fg-muted">Link to purchase (optional)</label>
-          <select
-            value={transactionId}
-            onChange={(e) => setTransactionId(e.target.value)}
-            className="mt-2 w-full rounded-xl border border-border/90 bg-bg-muted/80 px-3.5 py-2.5 text-sm text-fg shadow-sm outline-none transition focus:border-accent/40 focus:ring-2 focus:ring-accent/25"
-          >
-            {txOptions.map((t) => (
-              <option key={t.id || 'none'} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        {showTransactionSelect ? (
+          <div className="lg:col-span-4">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-fg-muted">
+              Link to purchase (optional)
+            </label>
+            <select
+              value={transactionId}
+              onChange={(e) => setTransactionId(e.target.value)}
+              className="mt-2 w-full rounded-xl border border-border/90 bg-bg-muted/80 px-3.5 py-2.5 text-sm text-fg shadow-sm outline-none transition focus:border-accent/40 focus:ring-2 focus:ring-accent/25"
+            >
+              {txOptions.map((t) => (
+                <option key={t.id || 'none'} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
       </div>
 
       {error ? <div className="rounded-xl border border-red-500/20 bg-red-500/[0.06] px-3 py-2 text-sm text-red-200">{error}</div> : null}

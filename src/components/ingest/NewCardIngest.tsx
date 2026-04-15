@@ -133,6 +133,7 @@ export function NewCardIngest() {
             <UploadScreenshots
               cardId={cardId}
               transactions={[]}
+              allowTransactionLink={false}
               onUploaded={(assets) => {
                 setUploadedCount((c) => c + assets.length);
                 setStep('ready');

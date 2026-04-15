@@ -4,6 +4,7 @@ import { Card as UiCard, CardHeader } from '@/components/ui/Card';
 import { getCardDetail } from '@/lib/db/cards';
 import { formatUsdFromCents } from '@/lib/money';
 import { UploadScreenshots } from '@/components/assets/UploadScreenshots';
+import { CardActions } from '@/components/cards/CardActions';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +39,7 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
   if (!error && !detail) notFound();
 
   const card = detail?.card ?? null;
+  const latestTx = detail?.transactions?.[0] ?? null;
 
   return (
     <div className="space-y-8">
@@ -50,11 +52,32 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
             <span className="mx-2">/</span>
             <span className="text-fg">Card</span>
           </div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight text-fg">
-            {card?.player_name ?? 'Card detail'}
+          <div className="mt-2 text-2xl font-semibold tracking-tight text-fg">{card?.player_name ?? 'Card'}</div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-fg-muted">
+            <span>{card?.year ?? '—'}</span>
+            <span className="text-fg-muted/40">·</span>
+            <span>{card?.brand ?? '—'}</span>
+            <span className="text-fg-muted/40">·</span>
+            <span>{card?.set_name ?? '—'}</span>
+            {card?.parallel ? (
+              <>
+                <span className="text-fg-muted/40">·</span>
+                <span className="text-fg">{card.parallel}</span>
+              </>
+            ) : null}
           </div>
-          <div className="mt-2 text-sm text-fg-muted">
-            {card?.year ?? '—'} · {card?.brand ?? '—'} · {card?.set_name ?? '—'}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {card?.rookie ? <Pill>Rookie</Pill> : null}
+            {card?.auto ? <Pill>Auto</Pill> : null}
+            {card?.patch ? <Pill>Patch</Pill> : null}
+            {card?.serial_number ? <Pill>#{card.serial_number}</Pill> : null}
+            {card?.graded ? (
+              <Pill>
+                {card.grading_company ?? 'Graded'} {card.grade ?? ''}
+              </Pill>
+            ) : (
+              <Pill>Raw</Pill>
+            )}
           </div>
         </div>
 
@@ -65,6 +88,7 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
           >
             Back
           </Link>
+          {card ? <CardActions cardId={card.id} /> : null}
         </div>
       </div>
 
@@ -79,11 +103,40 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
         <>
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <UiCard className="lg:col-span-2">
+              <CardHeader title="Purchase details" subtitle="Latest recorded purchase (cost basis)" />
+              <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <Field label="Platform" value={latestTx?.platform ?? '—'} />
+                <Field label="Date" value={latestTx?.purchase_date ?? '—'} />
+                <Field label="Purchase" value={latestTx ? formatUsdFromCents(latestTx.purchase_price_cents) : '—'} />
+                <Field label="Total cost" value={latestTx ? formatUsdFromCents(latestTx.total_cost_cents) : '—'} />
+              </div>
+              <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <Field label="Taxes" value={latestTx ? formatUsdFromCents(latestTx.taxes_cents) : '—'} />
+                <Field label="Shipping" value={latestTx ? formatUsdFromCents(latestTx.shipping_cents) : '—'} />
+                <Field label="Source URL" value={latestTx?.source_url ? (
+                  <a href={latestTx.source_url} target="_blank" rel="noreferrer" className="text-accent hover:underline underline-offset-4">
+                    Open
+                  </a>
+                ) : '—'} />
+                <Field label="Title (raw)" value={latestTx?.title_raw ?? '—'} />
+              </div>
+            </UiCard>
+
+            <UiCard>
+              <CardHeader title="Collection" subtitle="Organization" />
+              <div className="mt-5 space-y-4">
+                <Field label="Sport" value={detail.card.sport ?? '—'} />
+                <Field label="Team" value={detail.card.team ?? '—'} />
+                <Field label="Set" value={`${detail.card.brand ?? '—'} · ${detail.card.set_name ?? '—'}`} />
+              </div>
+            </UiCard>
+          </section>
+
+          <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <UiCard className="lg:col-span-2">
               <CardHeader title="Card identity" subtitle="Structured identity fields" />
               <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Player" value={detail.card.player_name ?? '—'} />
-                <Field label="Sport" value={detail.card.sport ?? '—'} />
-                <Field label="Team" value={detail.card.team ?? '—'} />
                 <Field label="Year" value={detail.card.year ?? '—'} />
                 <Field label="Brand" value={detail.card.brand ?? '—'} />
                 <Field label="Set name" value={detail.card.set_name ?? '—'} />
@@ -92,13 +145,6 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
                 <Field label="Parallel" value={detail.card.parallel ?? '—'} />
                 <Field label="Serial number" value={detail.card.serial_number ?? '—'} />
                 <Field label="Print run" value={detail.card.print_run ?? '—'} />
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                {detail.card.rookie ? <Pill>Rookie</Pill> : null}
-                {detail.card.auto ? <Pill>Auto</Pill> : null}
-                {detail.card.patch ? <Pill>Patch</Pill> : null}
-                {detail.card.graded ? <Pill>Graded</Pill> : <Pill>Raw</Pill>}
               </div>
 
               {detail.card.graded ? (
