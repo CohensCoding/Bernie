@@ -23,6 +23,20 @@ function saveHidden(v: Record<string, boolean>) {
   window.localStorage.setItem(HIDDEN_KEY, JSON.stringify(v));
 }
 
+function readUrlErrorFromSearch(): string | null {
+  if (typeof window === 'undefined') return null;
+  const err = new URLSearchParams(window.location.search).get('error');
+  if (!err) return null;
+  if (err === 'EBAY_DB_NOT_MIGRATED') {
+    return 'eBay import is not set up in your database yet.\n\nRun the SQL in supabase/schema.sql (or your migration) to create integrations_ebay_connection and card_imports.';
+  }
+  try {
+    return decodeURIComponent(err);
+  } catch {
+    return err;
+  }
+}
+
 export function EbayImportClient() {
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -36,24 +50,14 @@ export function EbayImportClient() {
     setHidden(loadHidden());
   }, []);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const sp = new URLSearchParams(window.location.search);
-    const err = sp.get('error');
-    if (err) {
-      if (err === 'EBAY_DB_NOT_MIGRATED') {
-        setError(
-          'eBay import is not set up in your database yet.\n\nRun the SQL in supabase/schema.sql (or your migration) to create integrations_ebay_connection and card_imports.',
-        );
-      } else {
-        setError(decodeURIComponent(err));
-      }
-    }
-  }, []);
-
   async function load() {
     setLoading(true);
-    setError(null);
+    const urlError = readUrlErrorFromSearch();
+    if (urlError) {
+      setError(urlError);
+    } else {
+      setError(null);
+    }
     try {
       const res = await fetch('/api/import/ebay/purchases?days=90', { cache: 'no-store' });
       const json = (await res.json()) as {
@@ -71,16 +75,23 @@ export function EbayImportClient() {
       if (res.status === 503 && json?.code === 'EBAY_DB_NOT_MIGRATED') {
         setConnected(false);
         setItems([]);
-        setError(`${json.error}${json.hint ? `\n\n${json.hint}` : ''}`);
+        if (!urlError) {
+          setError(`${json.error}${json.hint ? `\n\n${json.hint}` : ''}`);
+        }
         return;
       }
       if (!res.ok) throw new Error(json?.error ?? 'Unable to load purchases.');
       setConnected(true);
       setItems(json.purchases ?? []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Unable to load purchases.');
+      if (!urlError) {
+        setError(e instanceof Error ? e.message : 'Unable to load purchases.');
+      }
     } finally {
       setLoading(false);
+      if (typeof window !== 'undefined' && urlError) {
+        window.history.replaceState({}, '', '/import/ebay');
+      }
     }
   }
 
@@ -107,6 +118,11 @@ export function EbayImportClient() {
   if (connected === false) {
     return (
       <div className="space-y-4">
+        {error ? (
+          <div className="rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-4 py-3 text-sm text-red-200 whitespace-pre-line">
+            {error}
+          </div>
+        ) : null}
         <div className="rounded-2xl border border-border/80 bg-bg-muted/30 p-5">
           <div className="text-sm font-semibold text-fg">Connect eBay</div>
           <div className="mt-2 text-sm text-fg-muted">
