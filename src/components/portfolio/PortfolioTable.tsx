@@ -38,41 +38,92 @@ type ColumnKey =
   | 'team'
   | 'notes';
 
-const COLUMN_STORAGE_KEY = 'bernie.cards.table.columns.v1';
+const COLUMN_STORAGE_KEY = 'bernie.cards.table.columns.v2';
 
+/** Calm default: scan-friendly inventory columns. */
 const DEFAULT_VISIBLE: Record<ColumnKey, boolean> = {
   thumb: true,
   player: true,
   year: true,
   brandSet: true,
-  parallel: true,
+  parallel: false,
   grade: true,
   grader: false,
-  platform: true,
+  platform: false,
   purchasePrice: true,
   totalCost: true,
   purchaseDate: true,
-  sport: true,
-  team: true,
+  sport: false,
+  team: false,
   notes: false,
 };
 
 const COLUMN_LABELS: Record<ColumnKey, string> = {
-  thumb: 'Thumbnail',
+  thumb: 'Image',
   player: 'Player',
   year: 'Year',
-  brandSet: 'Brand / set',
+  brandSet: 'Set',
   parallel: 'Parallel',
   grade: 'Grade',
   grader: 'Grading company',
   platform: 'Platform',
   purchasePrice: 'Purchase',
   totalCost: 'Total cost',
-  purchaseDate: 'Purchase date',
+  purchaseDate: 'Date',
   sport: 'Sport',
   team: 'Team',
   notes: 'Notes',
 };
+
+const VIEW_STORAGE_KEY = 'bernie.cards.viewMode.v1';
+
+type ViewMode = 'table' | 'grid';
+
+type GradedFilter = 'All' | 'Graded' | 'Raw';
+type Tri = 'All' | 'Yes' | 'No';
+type NumberedFilter = 'All' | 'Numbered' | 'Not numbered';
+
+type FilterState = {
+  sport: string;
+  player: string;
+  team: string;
+  year: string;
+  brandSet: string;
+  parallel: string;
+  grade: string;
+  grader: string;
+  platform: string;
+  graded: GradedFilter;
+  autoF: Tri;
+  patchF: Tri;
+  numberedF: NumberedFilter;
+  dateFrom: string;
+  dateTo: string;
+  costMin: string;
+  costMax: string;
+};
+
+const EMPTY_FILTERS: FilterState = {
+  sport: 'All',
+  player: 'All',
+  team: 'All',
+  year: 'All',
+  brandSet: 'All',
+  parallel: 'All',
+  grade: 'All',
+  grader: 'All',
+  platform: 'All',
+  graded: 'All',
+  autoF: 'All',
+  patchF: 'All',
+  numberedF: 'All',
+  dateFrom: '',
+  dateTo: '',
+  costMin: '',
+  costMax: '',
+};
+
+type ChipId = keyof FilterState;
 
 function norm(s: string | null | undefined) {
   return (s ?? '').toString().trim().toLowerCase();
@@ -87,6 +138,13 @@ function brandSetLabel(c: PortfolioRow['card']) {
   const brand = normKey(c.brand);
   const set = normKey(c.set_name);
   return `${brand} · ${set}`;
+}
+
+function setDisplayLabel(c: PortfolioRow['card']) {
+  const b = (c.brand ?? '').trim();
+  const s = (c.set_name ?? '').trim();
+  if (b && s) return `${b} · ${s}`;
+  return b || s || '—';
 }
 
 function isNumbered(c: PortfolioRow['card']) {
@@ -117,29 +175,137 @@ function loadColumnVisibility(): Record<ColumnKey, boolean> {
   }
 }
 
+function loadViewMode(): ViewMode {
+  if (typeof window === 'undefined') return 'table';
+  const v = window.localStorage.getItem(VIEW_STORAGE_KEY);
+  return v === 'grid' ? 'grid' : 'table';
+}
+
+function countAppliedFilters(f: FilterState): number {
+  let n = 0;
+  if (f.sport !== 'All') n++;
+  if (f.player !== 'All') n++;
+  if (f.team !== 'All') n++;
+  if (f.year !== 'All') n++;
+  if (f.brandSet !== 'All') n++;
+  if (f.parallel !== 'All') n++;
+  if (f.grade !== 'All') n++;
+  if (f.grader !== 'All') n++;
+  if (f.platform !== 'All') n++;
+  if (f.graded !== 'All') n++;
+  if (f.autoF !== 'All') n++;
+  if (f.patchF !== 'All') n++;
+  if (f.numberedF !== 'All') n++;
+  if (f.dateFrom) n++;
+  if (f.dateTo) n++;
+  if (f.costMin.trim()) n++;
+  if (f.costMax.trim()) n++;
+  return n;
+}
+
+function chipForFilter(id: ChipId, f: FilterState): { id: ChipId; label: string } | null {
+  switch (id) {
+    case 'sport':
+      return f.sport !== 'All' ? { id, label: `Sport: ${f.sport}` } : null;
+    case 'player':
+      return f.player !== 'All' ? { id, label: `Player: ${f.player}` } : null;
+    case 'team':
+      return f.team !== 'All' ? { id, label: `Team: ${f.team}` } : null;
+    case 'year':
+      return f.year !== 'All' ? { id, label: `Year: ${f.year}` } : null;
+    case 'brandSet':
+      return f.brandSet !== 'All' ? { id, label: `Set: ${f.brandSet}` } : null;
+    case 'parallel':
+      return f.parallel !== 'All' ? { id, label: `Parallel: ${f.parallel}` } : null;
+    case 'grade':
+      return f.grade !== 'All' ? { id, label: `Grade: ${f.grade}` } : null;
+    case 'grader':
+      return f.grader !== 'All' ? { id, label: `Grader: ${f.grader}` } : null;
+    case 'platform':
+      return f.platform !== 'All' ? { id, label: `Platform: ${f.platform}` } : null;
+    case 'graded':
+      return f.graded !== 'All' ? { id, label: f.graded === 'Graded' ? 'Slab: graded' : 'Slab: raw' } : null;
+    case 'autoF':
+      return f.autoF !== 'All' ? { id, label: `Auto: ${f.autoF}` } : null;
+    case 'patchF':
+      return f.patchF !== 'All' ? { id, label: `Patch: ${f.patchF}` } : null;
+    case 'numberedF':
+      return f.numberedF !== 'All' ? { id, label: `Numbered: ${f.numberedF === 'Numbered' ? 'yes' : 'no'}` } : null;
+    case 'dateFrom':
+      return f.dateFrom ? { id, label: `From ${f.dateFrom}` } : null;
+    case 'dateTo':
+      return f.dateTo ? { id, label: `To ${f.dateTo}` } : null;
+    case 'costMin':
+      return f.costMin.trim() ? { id, label: `Min $${f.costMin.trim()}` } : null;
+    case 'costMax':
+      return f.costMax.trim() ? { id, label: `Max $${f.costMax.trim()}` } : null;
+    default:
+      return null;
+  }
+}
+
+function clearFilterChip(prev: FilterState, id: ChipId): FilterState {
+  const next = { ...prev };
+  switch (id) {
+    case 'dateFrom':
+    case 'dateTo':
+    case 'costMin':
+    case 'costMax':
+      next[id] = '';
+      break;
+    case 'graded':
+      next.graded = 'All';
+      break;
+    case 'autoF':
+      next.autoF = 'All';
+      break;
+    case 'patchF':
+      next.patchF = 'All';
+      break;
+    case 'numberedF':
+      next.numberedF = 'All';
+      break;
+    case 'sport':
+      next.sport = 'All';
+      break;
+    case 'player':
+      next.player = 'All';
+      break;
+    case 'team':
+      next.team = 'All';
+      break;
+    case 'year':
+      next.year = 'All';
+      break;
+    case 'brandSet':
+      next.brandSet = 'All';
+      break;
+    case 'parallel':
+      next.parallel = 'All';
+      break;
+    case 'grade':
+      next.grade = 'All';
+      break;
+    case 'grader':
+      next.grader = 'All';
+      break;
+    case 'platform':
+      next.platform = 'All';
+      break;
+  }
+  return next;
+}
+
 export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
   const router = useRouter();
   const [query, setQuery] = useState('');
-  const [sport, setSport] = useState('All');
-  const [player, setPlayer] = useState('All');
-  const [team, setTeam] = useState('All');
-  const [year, setYear] = useState('All');
-  const [brandSet, setBrandSet] = useState('All');
-  const [parallel, setParallel] = useState('All');
-  const [grade, setGrade] = useState('All');
-  const [grader, setGrader] = useState('All');
-  const [platform, setPlatform] = useState('All');
-  const [graded, setGraded] = useState<'All' | 'Graded' | 'Raw'>('All');
-  const [autoF, setAutoF] = useState<'All' | 'Yes' | 'No'>('All');
-  const [patchF, setPatchF] = useState<'All' | 'Yes' | 'No'>('All');
-  const [numberedF, setNumberedF] = useState<'All' | 'Numbered' | 'Not numbered'>('All');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [costMin, setCostMin] = useState('');
-  const [costMax, setCostMax] = useState('');
+  const [applied, setApplied] = useState<FilterState>(EMPTY_FILTERS);
+  const [draft, setDraft] = useState<FilterState>(EMPTY_FILTERS);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const [sortKey, setSortKey] = useState<SortKey>('purchaseDate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -156,12 +322,18 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
 
   useEffect(() => {
     setVisibleCols(loadColumnVisibility());
+    setViewMode(loadViewMode());
   }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(visibleCols));
   }, [visibleCols]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
+  }, [viewMode]);
 
   useEffect(() => {
     function onDoc() {
@@ -172,6 +344,45 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
       return () => document.removeEventListener('click', onDoc);
     }
   }, [rowMenu]);
+
+  useEffect(() => {
+    function onDoc() {
+      setColumnsOpen(false);
+    }
+    if (columnsOpen) {
+      document.addEventListener('click', onDoc);
+      return () => document.removeEventListener('click', onDoc);
+    }
+  }, [columnsOpen]);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setFilterOpen(false);
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [filterOpen]);
+
+  useEffect(() => {
+    if (filterOpen) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [filterOpen]);
+
+  const filterCount = useMemo(() => countAppliedFilters(applied), [applied]);
+
+  const chips = useMemo(() => {
+    const ids = Object.keys(EMPTY_FILTERS) as ChipId[];
+    const out: { id: ChipId; label: string }[] = [];
+    for (const id of ids) {
+      const c = chipForFilter(id, applied);
+      if (c) out.push(c);
+    }
+    return out;
+  }, [applied]);
 
   const optionLists = useMemo(() => {
     const sports = new Set<string>();
@@ -211,38 +422,39 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
   }, [rows]);
 
   const filtered = useMemo(() => {
+    const f = applied;
     const tokens = norm(query)
       .split(/\s+/)
       .map((t) => t.trim())
       .filter(Boolean);
-    const minC = parseMoneyToCents(costMin);
-    const maxC = parseMoneyToCents(costMax);
+    const minC = parseMoneyToCents(f.costMin);
+    const maxC = parseMoneyToCents(f.costMax);
 
     return rows.filter((r) => {
       const c = r.card;
       const t = r.latestTransaction;
 
-      if (sport !== 'All' && normKey(c.sport) !== sport) return false;
-      if (player !== 'All' && (c.player_name ?? '').trim() !== player) return false;
-      if (team !== 'All' && (c.team ?? '').trim() !== team) return false;
-      if (year !== 'All' && String(c.year ?? '') !== year) return false;
-      if (brandSet !== 'All' && brandSetLabel(c) !== brandSet) return false;
-      if (parallel !== 'All' && (c.parallel ?? '').trim() !== parallel) return false;
-      if (grade !== 'All' && (c.grade ?? '').trim() !== grade) return false;
-      if (grader !== 'All' && (c.grading_company ?? '').trim() !== grader) return false;
-      if (platform !== 'All' && (t?.platform ?? '').trim() !== platform) return false;
-      if (graded === 'Graded' && !c.graded) return false;
-      if (graded === 'Raw' && c.graded) return false;
-      if (autoF === 'Yes' && !c.auto) return false;
-      if (autoF === 'No' && c.auto) return false;
-      if (patchF === 'Yes' && !c.patch) return false;
-      if (patchF === 'No' && c.patch) return false;
-      if (numberedF === 'Numbered' && !isNumbered(c)) return false;
-      if (numberedF === 'Not numbered' && isNumbered(c)) return false;
+      if (f.sport !== 'All' && normKey(c.sport) !== f.sport) return false;
+      if (f.player !== 'All' && (c.player_name ?? '').trim() !== f.player) return false;
+      if (f.team !== 'All' && (c.team ?? '').trim() !== f.team) return false;
+      if (f.year !== 'All' && String(c.year ?? '') !== f.year) return false;
+      if (f.brandSet !== 'All' && brandSetLabel(c) !== f.brandSet) return false;
+      if (f.parallel !== 'All' && (c.parallel ?? '').trim() !== f.parallel) return false;
+      if (f.grade !== 'All' && (c.grade ?? '').trim() !== f.grade) return false;
+      if (f.grader !== 'All' && (c.grading_company ?? '').trim() !== f.grader) return false;
+      if (f.platform !== 'All' && (t?.platform ?? '').trim() !== f.platform) return false;
+      if (f.graded === 'Graded' && !c.graded) return false;
+      if (f.graded === 'Raw' && c.graded) return false;
+      if (f.autoF === 'Yes' && !c.auto) return false;
+      if (f.autoF === 'No' && c.auto) return false;
+      if (f.patchF === 'Yes' && !c.patch) return false;
+      if (f.patchF === 'No' && c.patch) return false;
+      if (f.numberedF === 'Numbered' && !isNumbered(c)) return false;
+      if (f.numberedF === 'Not numbered' && isNumbered(c)) return false;
 
       const pd = t?.purchase_date ?? '';
-      if (dateFrom && (!pd || pd < dateFrom)) return false;
-      if (dateTo && (!pd || pd > dateTo)) return false;
+      if (f.dateFrom && (!pd || pd < f.dateFrom)) return false;
+      if (f.dateTo && (!pd || pd > f.dateTo)) return false;
 
       const total = t?.total_cost_cents ?? 0;
       if (minC != null && total < minC) return false;
@@ -267,27 +479,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
       }
       return true;
     });
-  }, [
-    rows,
-    query,
-    sport,
-    player,
-    team,
-    year,
-    brandSet,
-    parallel,
-    grade,
-    grader,
-    platform,
-    graded,
-    autoF,
-    patchF,
-    numberedF,
-    dateFrom,
-    dateTo,
-    costMin,
-    costMax,
-  ]);
+  }, [rows, query, applied]);
 
   const sorted = useMemo(() => {
     const dir = sortDir === 'asc' ? 1 : -1;
@@ -357,7 +549,11 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
     if (sortKey === next) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     else {
       setSortKey(next);
-      setSortDir(next === 'player' || next === 'brandSet' || next === 'sport' || next === 'team' || next === 'grader' || next === 'platform' ? 'asc' : 'desc');
+      setSortDir(
+        next === 'player' || next === 'brandSet' || next === 'sport' || next === 'team' || next === 'grader' || next === 'platform'
+          ? 'asc'
+          : 'desc',
+      );
     }
   }
 
@@ -391,138 +587,72 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
     (visibleCols.notes ? 1 : 0) +
     1;
 
+  function openFilters() {
+    setDraft({ ...applied });
+    setFilterOpen(true);
+  }
+
   return (
     <div className="space-y-4">
-      {selectedIds.length > 0 ? (
-        <div className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-bg-elevated/40 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-fg">
-            <span className="font-semibold">{selectedIds.length}</span>{' '}
-            <span className="text-fg-muted">selected</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSelected({})}
-              className="rounded-xl border border-border/80 bg-bg-muted/40 px-3 py-2 text-sm text-fg transition hover:bg-bg-muted/70"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setBulkApplySport(false);
-                setBulkApplyTeam(false);
-                setBulkSport('');
-                setBulkTeam('');
-                setBulkError(null);
-                setBulkEditOpen(true);
-              }}
-              className="rounded-xl border border-border/80 bg-bg-muted/40 px-3 py-2 text-sm text-fg transition hover:bg-bg-muted/70"
-            >
-              Bulk edit…
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setBulkError(null);
-                setConfirmBulkDelete(true);
-              }}
-              className="rounded-xl border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/[0.1]"
-            >
-              Delete selected
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {/* Primary toolbar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search cards…"
+          className="min-h-[40px] min-w-0 flex-1 rounded-xl border border-border/80 bg-bg-muted/50 px-3 py-2 text-sm text-fg placeholder:text-fg-muted/80 outline-none ring-accent/30 transition focus:ring-2"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={`${sortKey}:${sortDir}`}
+            onChange={(e) => {
+              const [k, d] = e.target.value.split(':') as [SortKey, SortDir];
+              setSortKey(k);
+              setSortDir(d);
+            }}
+            className="h-10 min-w-[10rem] rounded-xl border border-border/80 bg-bg-muted/50 px-3 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/30"
+          >
+            <option value="createdAt:desc">Newest added</option>
+            <option value="createdAt:asc">Oldest added</option>
+            <option value="purchaseDate:desc">Purchase date (new)</option>
+            <option value="purchaseDate:asc">Purchase date (old)</option>
+            <option value="totalCost:desc">Total cost (high)</option>
+            <option value="totalCost:asc">Total cost (low)</option>
+            <option value="purchasePrice:desc">Purchase (high)</option>
+            <option value="purchasePrice:asc">Purchase (low)</option>
+            <option value="player:asc">Player (A–Z)</option>
+            <option value="player:desc">Player (Z–A)</option>
+            <option value="year:desc">Year (new)</option>
+            <option value="year:asc">Year (old)</option>
+            <option value="sport:asc">Sport</option>
+            <option value="team:asc">Team</option>
+          </select>
 
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex flex-1 flex-col gap-2">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search (all words must match)…"
-            className="w-full rounded-xl border border-border bg-bg-muted px-3 py-2 text-sm text-fg placeholder:text-fg-muted outline-none focus:ring-2 focus:ring-accent/40"
-          />
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            <FilterSelect label="Sport" value={sport} onChange={setSport} options={optionLists.sports} />
-            <FilterSelect label="Player" value={player} onChange={setPlayer} options={optionLists.players} />
-            <FilterSelect label="Team" value={team} onChange={setTeam} options={optionLists.teams} />
-            <FilterSelect label="Year" value={year} onChange={setYear} options={optionLists.years} />
-            <FilterSelect
-              label="Brand / set"
-              value={brandSet}
-              onChange={setBrandSet}
-              options={optionLists.brandSets}
-            />
-            <FilterSelect label="Parallel" value={parallel} onChange={setParallel} options={optionLists.parallels} />
-            <FilterSelect label="Grade" value={grade} onChange={setGrade} options={optionLists.grades} />
-            <FilterSelect label="Grader" value={grader} onChange={setGrader} options={optionLists.graders} />
-            <FilterSelect label="Platform" value={platform} onChange={setPlatform} options={optionLists.platforms} />
-            <FilterSelect
-              label="Slab"
-              value={graded}
-              onChange={(v) => setGraded(v as typeof graded)}
-              options={['All', 'Graded', 'Raw']}
-            />
-            <FilterSelect label="Auto" value={autoF} onChange={(v) => setAutoF(v as typeof autoF)} options={['All', 'Yes', 'No']} />
-            <FilterSelect label="Patch" value={patchF} onChange={(v) => setPatchF(v as typeof patchF)} options={['All', 'Yes', 'No']} />
-            <FilterSelect
-              label="Numbered"
-              value={numberedF}
-              onChange={(v) => setNumberedF(v as typeof numberedF)}
-              options={['All', 'Numbered', 'Not numbered']}
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-wide text-fg-muted">Purchase from</span>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="rounded-xl border border-border bg-bg-muted px-2 py-1.5 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/40"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-wide text-fg-muted">Purchase to</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="rounded-xl border border-border bg-bg-muted px-2 py-1.5 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/40"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-wide text-fg-muted">Min cost ($)</span>
-              <input
-                value={costMin}
-                onChange={(e) => setCostMin(e.target.value)}
-                placeholder="0"
-                className="w-28 rounded-xl border border-border bg-bg-muted px-2 py-1.5 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/40"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-wide text-fg-muted">Max cost ($)</span>
-              <input
-                value={costMax}
-                onChange={(e) => setCostMax(e.target.value)}
-                placeholder="—"
-                className="w-28 rounded-xl border border-border bg-bg-muted px-2 py-1.5 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/40"
-              />
-            </div>
-          </div>
-        </div>
-        <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
+          <button
+            type="button"
+            onClick={openFilters}
+            className="h-10 rounded-xl border border-border/80 bg-bg-muted/50 px-3 text-sm text-fg transition hover:bg-bg-muted/80"
+          >
+            Filters{filterCount > 0 ? ` (${filterCount})` : ''}
+          </button>
+
           <div className="relative">
             <button
               type="button"
-              onClick={() => setColumnsOpen((o) => !o)}
-              className="rounded-xl border border-border bg-bg-muted px-3 py-2 text-sm text-fg outline-none transition hover:bg-bg-muted/80 focus:ring-2 focus:ring-accent/40"
+              onClick={(e) => {
+                e.stopPropagation();
+                setColumnsOpen((o) => !o);
+              }}
+              className="h-10 rounded-xl border border-border/80 bg-bg-muted/50 px-3 text-sm text-fg transition hover:bg-bg-muted/80"
             >
               Columns
             </button>
             {columnsOpen ? (
-              <div className="absolute right-0 z-20 mt-2 w-56 rounded-xl border border-border bg-bg-elevated p-3 shadow-xl">
+              <div
+                className="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-border bg-bg-elevated p-3 shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
                 <div className="text-xs font-semibold uppercase tracking-wide text-fg-muted">Visible</div>
                 <div className="mt-2 max-h-64 space-y-2 overflow-y-auto">
                   {(Object.keys(COLUMN_LABELS) as ColumnKey[]).map((key) => (
@@ -539,121 +669,107 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
               </div>
             ) : null}
           </div>
-          <label className="flex flex-col gap-1">
-            <span className="text-[10px] uppercase tracking-wide text-fg-muted">Sort by</span>
-            <select
-              value={`${sortKey}:${sortDir}`}
-              onChange={(e) => {
-                const [k, d] = e.target.value.split(':') as [SortKey, SortDir];
-                setSortKey(k);
-                setSortDir(d);
-              }}
-              className="rounded-xl border border-border bg-bg-muted px-3 py-2 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/40"
+
+          <div className="flex h-10 rounded-xl border border-border/80 bg-bg-muted/40 p-0.5">
+            <button
+              type="button"
+              onClick={() => setViewMode('table')}
+              className={`rounded-lg px-3 text-xs font-medium transition sm:text-sm ${
+                viewMode === 'table' ? 'bg-bg-elevated text-fg shadow-sm' : 'text-fg-muted hover:text-fg'
+              }`}
             >
-              <option value="createdAt:desc">Newest added</option>
-              <option value="createdAt:asc">Oldest added</option>
-              <option value="purchaseDate:desc">Purchase date (new)</option>
-              <option value="purchaseDate:asc">Purchase date (old)</option>
-              <option value="totalCost:desc">Total cost (high)</option>
-              <option value="totalCost:asc">Total cost (low)</option>
-              <option value="purchasePrice:desc">Purchase price (high)</option>
-              <option value="purchasePrice:asc">Purchase price (low)</option>
-              <option value="player:asc">Player (A–Z)</option>
-              <option value="player:desc">Player (Z–A)</option>
-              <option value="year:desc">Year (new)</option>
-              <option value="year:asc">Year (old)</option>
-              <option value="sport:asc">Sport</option>
-              <option value="team:asc">Team</option>
-            </select>
-          </label>
+              Table
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`rounded-lg px-3 text-xs font-medium transition sm:text-sm ${
+                viewMode === 'grid' ? 'bg-bg-elevated text-fg shadow-sm' : 'text-fg-muted hover:text-fg'
+              }`}
+            >
+              Grid
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="min-w-[980px] w-full border-separate border-spacing-0">
-          <thead className="bg-bg-muted">
-            <tr className="text-left text-xs uppercase tracking-wide text-fg-muted">
-              <th className="px-3 py-3 w-10">
-                <input
-                  type="checkbox"
-                  checked={allVisibleSelected}
-                  onChange={(e) => setAllVisible(e.target.checked)}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              </th>
-              {visibleCols.thumb ? (
-                <th className="px-2 py-3 w-14" onClick={(e) => e.stopPropagation()}>
-                  Img
-                </th>
-              ) : null}
-              {visibleCols.player ? (
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('player')}>
-                  Player{sortIndicator('player')}
-                </th>
-              ) : null}
-              {visibleCols.year ? (
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('year')}>
-                  Year{sortIndicator('year')}
-                </th>
-              ) : null}
-              {visibleCols.brandSet ? (
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('brandSet')}>
-                  Brand / Set{sortIndicator('brandSet')}
-                </th>
-              ) : null}
-              {visibleCols.parallel ? <th className="px-4 py-3">Parallel</th> : null}
-              {visibleCols.grade ? (
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('grade')}>
-                  Grade{sortIndicator('grade')}
-                </th>
-              ) : null}
-              {visibleCols.grader ? (
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('grader')}>
-                  Grader{sortIndicator('grader')}
-                </th>
-              ) : null}
-              {visibleCols.platform ? (
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('platform')}>
-                  Platform{sortIndicator('platform')}
-                </th>
-              ) : null}
-              {visibleCols.purchasePrice ? (
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('purchasePrice')}>
-                  Purchase{sortIndicator('purchasePrice')}
-                </th>
-              ) : null}
-              {visibleCols.totalCost ? (
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('totalCost')}>
-                  Total cost{sortIndicator('totalCost')}
-                </th>
-              ) : null}
-              {visibleCols.purchaseDate ? (
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('purchaseDate')}>
-                  Date{sortIndicator('purchaseDate')}
-                </th>
-              ) : null}
-              {visibleCols.sport ? (
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('sport')}>
-                  Sport{sortIndicator('sport')}
-                </th>
-              ) : null}
-              {visibleCols.team ? (
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort('team')}>
-                  Team{sortIndicator('team')}
-                </th>
-              ) : null}
-              {visibleCols.notes ? <th className="px-4 py-3">Notes</th> : null}
-              <th className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()} />
-            </tr>
-          </thead>
-          <tbody>
+      {chips.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {chips.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setApplied((prev) => clearFilterChip(prev, c.id))}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-bg-muted/40 py-1 pl-2.5 pr-2 text-xs text-fg transition hover:bg-bg-muted/70"
+            >
+              <span>{c.label}</span>
+              <span className="text-fg-muted">×</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setApplied({ ...EMPTY_FILTERS })}
+            className="text-xs font-medium text-fg-muted underline-offset-2 hover:text-fg hover:underline"
+          >
+            Clear all
+          </button>
+        </div>
+      ) : null}
+
+      {selectedIds.length > 0 ? (
+        <div className="flex flex-col gap-2 rounded-xl border border-accent/20 bg-accent/[0.06] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-fg">
+            <span className="font-medium">{selectedIds.length}</span>
+            <span className="text-fg-muted"> selected</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelected({})}
+              className="rounded-lg px-2 py-1.5 text-sm text-fg-muted transition hover:bg-bg-muted/50 hover:text-fg"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setBulkApplySport(false);
+                setBulkApplyTeam(false);
+                setBulkSport('');
+                setBulkTeam('');
+                setBulkError(null);
+                setBulkEditOpen(true);
+              }}
+              className="rounded-lg border border-border/60 bg-bg-muted/40 px-2.5 py-1.5 text-sm text-fg transition hover:bg-bg-muted/70"
+            >
+              Bulk edit
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setBulkError(null);
+                setConfirmBulkDelete(true);
+              }}
+              className="rounded-lg border border-red-500/20 bg-red-500/[0.06] px-2.5 py-1.5 text-sm text-red-200 transition hover:bg-red-500/[0.1]"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {viewMode === 'grid' ? (
+        sorted.length === 0 ? (
+          <div className="rounded-xl border border-border/60 py-16 text-center text-sm text-fg-muted">No results.</div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {sorted.map((r) => {
               const c = r.card;
               const t = r.latestTransaction;
               const gradeLabel = c.graded ? `${c.grading_company ?? ''} ${c.grade ?? ''}`.trim() : 'Raw';
               const isSelected = Boolean(selected[c.id]);
               return (
-                <tr
+                <div
                   key={c.id}
                   role="link"
                   tabIndex={0}
@@ -664,151 +780,403 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                       navigateRow(c.id);
                     }
                   }}
-                  className="border-t border-border cursor-pointer hover:bg-bg-elevated/60"
+                  className="group cursor-pointer overflow-hidden rounded-2xl border border-border/70 bg-bg-elevated/40 transition hover:border-border hover:bg-bg-elevated/70"
                 >
-                  <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={(e) => setSelected((prev) => ({ ...prev, [c.id]: e.target.checked }))}
-                    />
-                  </td>
-                  {visibleCols.thumb ? (
-                    <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
-                      {r.thumb_signed_url ? (
-                        <Link href={`/cards/${c.id}`} className="block h-11 w-11 overflow-hidden rounded-lg border border-border/80 bg-bg-muted">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={r.thumb_signed_url} alt="" className="h-11 w-11 object-cover" />
-                        </Link>
-                      ) : (
-                        <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-dashed border-border/60 text-[10px] text-fg-muted">
-                          —
-                        </div>
-                      )}
-                    </td>
-                  ) : null}
-                  {visibleCols.player ? (
-                    <td className="px-4 py-3 text-sm text-fg">
-                      <span className="font-medium hover:underline underline-offset-4">{c.player_name ?? 'Unknown'}</span>
-                      {!visibleCols.brandSet ? (
-                        <div className="mt-1 text-xs text-fg-muted">{c.set_name ?? ''}</div>
-                      ) : null}
-                    </td>
-                  ) : null}
-                  {visibleCols.year ? <td className="px-4 py-3 text-sm text-fg">{c.year ?? '—'}</td> : null}
-                  {visibleCols.brandSet ? (
-                    <td className="px-4 py-3 text-sm text-fg">
-                      {c.brand ?? '—'}
-                      <span className="text-fg-muted"> · </span>
-                      {c.set_name ?? '—'}
-                    </td>
-                  ) : null}
-                  {visibleCols.parallel ? <td className="px-4 py-3 text-sm text-fg">{c.parallel ?? '—'}</td> : null}
-                  {visibleCols.grade ? <td className="px-4 py-3 text-sm text-fg">{gradeLabel}</td> : null}
-                  {visibleCols.grader ? (
-                    <td className="px-4 py-3 text-sm text-fg">{c.grading_company ?? '—'}</td>
-                  ) : null}
-                  {visibleCols.platform ? <td className="px-4 py-3 text-sm text-fg">{t?.platform ?? '—'}</td> : null}
-                  {visibleCols.purchasePrice ? (
-                    <td className="px-4 py-3 text-sm text-fg">{t ? formatUsdFromCents(t.purchase_price_cents) : '—'}</td>
-                  ) : null}
-                  {visibleCols.totalCost ? (
-                    <td className="px-4 py-3 text-sm text-fg">{t ? formatUsdFromCents(t.total_cost_cents) : '—'}</td>
-                  ) : null}
-                  {visibleCols.purchaseDate ? (
-                    <td className="px-4 py-3 text-sm text-fg">{t?.purchase_date ?? '—'}</td>
-                  ) : null}
-                  {visibleCols.sport ? <td className="px-4 py-3 text-sm text-fg">{c.sport ?? '—'}</td> : null}
-                  {visibleCols.team ? <td className="px-4 py-3 text-sm text-fg">{c.team ?? '—'}</td> : null}
-                  {visibleCols.notes ? (
-                    <td className="max-w-[200px] truncate px-4 py-3 text-sm text-fg-muted" title={c.notes ?? ''}>
-                      {c.notes?.trim() ? c.notes : '—'}
-                    </td>
-                  ) : null}
-                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="relative inline-block">
-                      <button
-                        type="button"
-                        onClick={(e) => {
+                  <div className="relative aspect-[4/5] bg-bg-muted/50">
+                    <label
+                      className="absolute left-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-border/80 bg-bg-elevated/90 shadow-sm backdrop-blur"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
                           e.stopPropagation();
-                          setRowMenu((cur) => (cur === c.id ? null : c.id));
+                          setSelected((prev) => ({ ...prev, [c.id]: e.target.checked }));
                         }}
-                        className="rounded-lg border border-border/70 bg-bg-muted/40 px-2 py-1 text-xs text-fg-muted hover:text-fg hover:bg-bg-elevated/60"
-                        aria-label="Row actions"
-                      >
-                        ⋯
-                      </button>
-                      {rowMenu === c.id ? (
-                        <div
-                          className="absolute right-0 z-10 mt-2 w-44 overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-xl"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRowMenu(null);
-                              router.push(`/cards/${c.id}`);
-                            }}
-                            className="block w-full px-3 py-2 text-left text-sm text-fg hover:bg-bg-muted/60"
-                          >
-                            View details
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRowMenu(null);
-                              router.push(`/cards/${c.id}/edit`);
-                            }}
-                            className="block w-full px-3 py-2 text-left text-sm text-fg hover:bg-bg-muted/60"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRowMenu(null);
-                              setConfirmSingleDelete(c.id);
-                              setBulkError(null);
-                            }}
-                            className="block w-full px-3 py-2 text-left text-sm text-red-200 hover:bg-red-500/[0.08]"
-                          >
-                            Delete…
-                          </button>
-                        </div>
-                      ) : null}
+                        className="h-3.5 w-3.5 rounded border-border"
+                        aria-label={isSelected ? 'Deselect' : 'Select'}
+                      />
+                    </label>
+                    {r.thumb_signed_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={r.thumb_signed_url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-fg-muted">No image</div>
+                    )}
+                  </div>
+                  <div className="space-y-1 p-3">
+                    <div className="truncate text-sm font-medium text-fg">{c.player_name ?? 'Unknown'}</div>
+                    <div className="truncate text-xs text-fg-muted">{c.year ?? '—'} · {setDisplayLabel(c)}</div>
+                    <div className="truncate text-xs text-fg-muted">{gradeLabel}</div>
+                    <div className="text-sm font-medium tabular-nums text-fg">
+                      {t ? formatUsdFromCents(t.total_cost_cents) : '—'}
                     </div>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               );
             })}
-            {sorted.length === 0 ? (
-              <tr>
-                <td className="px-4 py-8 text-center text-sm text-fg-muted" colSpan={visibleColCount}>
-                  No results.
-                </td>
+          </div>
+        )
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-border/80">
+          <table className="min-w-[720px] w-full border-separate border-spacing-0">
+            <thead className="bg-bg-muted/50">
+              <tr className="text-left text-[10px] uppercase tracking-wide text-fg-muted/90">
+                <th className="px-3 py-2.5 w-10">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={(e) => setAllVisible(e.target.checked)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </th>
+                {visibleCols.thumb ? (
+                  <th className="px-2 py-2.5 w-14" onClick={(e) => e.stopPropagation()}>
+                    {/* image */}
+                  </th>
+                ) : null}
+                {visibleCols.player ? (
+                  <th className="px-3 py-2.5 cursor-pointer text-fg-muted" onClick={() => toggleSort('player')}>
+                    Player{sortIndicator('player')}
+                  </th>
+                ) : null}
+                {visibleCols.year ? (
+                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('year')}>
+                    Year{sortIndicator('year')}
+                  </th>
+                ) : null}
+                {visibleCols.brandSet ? (
+                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('brandSet')}>
+                    Set{sortIndicator('brandSet')}
+                  </th>
+                ) : null}
+                {visibleCols.parallel ? <th className="px-3 py-2.5">Parallel</th> : null}
+                {visibleCols.grade ? (
+                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('grade')}>
+                    Grade{sortIndicator('grade')}
+                  </th>
+                ) : null}
+                {visibleCols.grader ? (
+                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('grader')}>
+                    Grader{sortIndicator('grader')}
+                  </th>
+                ) : null}
+                {visibleCols.platform ? (
+                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('platform')}>
+                    Platform{sortIndicator('platform')}
+                  </th>
+                ) : null}
+                {visibleCols.purchasePrice ? (
+                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('purchasePrice')}>
+                    Purchase{sortIndicator('purchasePrice')}
+                  </th>
+                ) : null}
+                {visibleCols.totalCost ? (
+                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('totalCost')}>
+                    Total{sortIndicator('totalCost')}
+                  </th>
+                ) : null}
+                {visibleCols.purchaseDate ? (
+                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('purchaseDate')}>
+                    Date{sortIndicator('purchaseDate')}
+                  </th>
+                ) : null}
+                {visibleCols.sport ? (
+                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('sport')}>
+                    Sport{sortIndicator('sport')}
+                  </th>
+                ) : null}
+                {visibleCols.team ? (
+                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('team')}>
+                    Team{sortIndicator('team')}
+                  </th>
+                ) : null}
+                {visibleCols.notes ? <th className="px-3 py-2.5">Notes</th> : null}
+                <th className="px-3 py-2.5 w-10" onClick={(e) => e.stopPropagation()} />
               </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {sorted.map((r) => {
+                const c = r.card;
+                const t = r.latestTransaction;
+                const gradeLabel = c.graded ? `${c.grading_company ?? ''} ${c.grade ?? ''}`.trim() : 'Raw';
+                const isSelected = Boolean(selected[c.id]);
+                return (
+                  <tr
+                    key={c.id}
+                    role="link"
+                    tabIndex={0}
+                    onClick={() => navigateRow(c.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigateRow(c.id);
+                      }
+                    }}
+                    className="border-t border-border/60 cursor-pointer hover:bg-bg-elevated/50"
+                  >
+                    <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => setSelected((prev) => ({ ...prev, [c.id]: e.target.checked }))}
+                      />
+                    </td>
+                    {visibleCols.thumb ? (
+                      <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                        {r.thumb_signed_url ? (
+                          <Link
+                            href={`/cards/${c.id}`}
+                            className="block h-10 w-10 overflow-hidden rounded-lg border border-border/60 bg-bg-muted"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={r.thumb_signed_url} alt="" className="h-10 w-10 object-cover" />
+                          </Link>
+                        ) : (
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-dashed border-border/50 text-[10px] text-fg-muted">
+                            —
+                          </div>
+                        )}
+                      </td>
+                    ) : null}
+                    {visibleCols.player ? (
+                      <td className="px-3 py-2.5 text-sm text-fg">
+                        <span className="font-medium">{c.player_name ?? 'Unknown'}</span>
+                        {!visibleCols.brandSet ? (
+                          <div className="mt-0.5 truncate text-xs text-fg-muted">{setDisplayLabel(c)}</div>
+                        ) : null}
+                      </td>
+                    ) : null}
+                    {visibleCols.year ? <td className="px-3 py-2.5 text-sm text-fg">{c.year ?? '—'}</td> : null}
+                    {visibleCols.brandSet ? (
+                      <td className="max-w-[200px] truncate px-3 py-2.5 text-sm text-fg">{setDisplayLabel(c)}</td>
+                    ) : null}
+                    {visibleCols.parallel ? (
+                      <td className="max-w-[120px] truncate px-3 py-2.5 text-sm text-fg">{c.parallel ?? '—'}</td>
+                    ) : null}
+                    {visibleCols.grade ? <td className="px-3 py-2.5 text-sm text-fg">{gradeLabel}</td> : null}
+                    {visibleCols.grader ? (
+                      <td className="px-3 py-2.5 text-sm text-fg">{c.grading_company ?? '—'}</td>
+                    ) : null}
+                    {visibleCols.platform ? <td className="px-3 py-2.5 text-sm text-fg">{t?.platform ?? '—'}</td> : null}
+                    {visibleCols.purchasePrice ? (
+                      <td className="px-3 py-2.5 text-sm tabular-nums text-fg">
+                        {t ? formatUsdFromCents(t.purchase_price_cents) : '—'}
+                      </td>
+                    ) : null}
+                    {visibleCols.totalCost ? (
+                      <td className="px-3 py-2.5 text-sm tabular-nums text-fg">
+                        {t ? formatUsdFromCents(t.total_cost_cents) : '—'}
+                      </td>
+                    ) : null}
+                    {visibleCols.purchaseDate ? (
+                      <td className="px-3 py-2.5 text-sm tabular-nums text-fg">{t?.purchase_date ?? '—'}</td>
+                    ) : null}
+                    {visibleCols.sport ? <td className="px-3 py-2.5 text-sm text-fg">{c.sport ?? '—'}</td> : null}
+                    {visibleCols.team ? <td className="px-3 py-2.5 text-sm text-fg">{c.team ?? '—'}</td> : null}
+                    {visibleCols.notes ? (
+                      <td className="max-w-[160px] truncate px-3 py-2.5 text-sm text-fg-muted" title={c.notes ?? ''}>
+                        {c.notes?.trim() ? c.notes : '—'}
+                      </td>
+                    ) : null}
+                    <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                      <div className="relative inline-block">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRowMenu((cur) => (cur === c.id ? null : c.id));
+                          }}
+                          className="rounded-md border border-border/60 bg-bg-muted/40 px-2 py-1 text-xs text-fg-muted hover:text-fg"
+                          aria-label="Row actions"
+                        >
+                          ⋯
+                        </button>
+                        {rowMenu === c.id ? (
+                          <div
+                            className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-xl"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRowMenu(null);
+                                router.push(`/cards/${c.id}`);
+                              }}
+                              className="block w-full px-3 py-2 text-left text-sm text-fg hover:bg-bg-muted/60"
+                            >
+                              View
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRowMenu(null);
+                                router.push(`/cards/${c.id}/edit`);
+                              }}
+                              className="block w-full px-3 py-2 text-left text-sm text-fg hover:bg-bg-muted/60"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRowMenu(null);
+                                setConfirmSingleDelete(c.id);
+                                setBulkError(null);
+                              }}
+                              className="block w-full px-3 py-2 text-left text-sm text-red-200 hover:bg-red-500/[0.08]"
+                            >
+                              Delete…
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {sorted.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-10 text-center text-sm text-fg-muted" colSpan={visibleColCount}>
+                    No results.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="text-xs text-fg-muted">
         Showing <span className="text-fg">{sorted.length}</span> of <span className="text-fg">{rows.length}</span>
       </div>
 
+      {/* Filter slide-over */}
+      {filterOpen ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close filters"
+            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px] transition"
+            onClick={() => setFilterOpen(false)}
+          />
+          <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l border-border bg-bg-elevated shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div className="text-sm font-semibold text-fg">Filters</div>
+              <button
+                type="button"
+                onClick={() => setFilterOpen(false)}
+                className="rounded-lg p-2 text-fg-muted hover:bg-bg-muted/50 hover:text-fg"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <FilterSelect label="Sport" value={draft.sport} onChange={(v) => setDraft((d) => ({ ...d, sport: v }))} options={optionLists.sports} />
+                <FilterSelect label="Player" value={draft.player} onChange={(v) => setDraft((d) => ({ ...d, player: v }))} options={optionLists.players} />
+                <FilterSelect label="Team" value={draft.team} onChange={(v) => setDraft((d) => ({ ...d, team: v }))} options={optionLists.teams} />
+                <FilterSelect label="Year" value={draft.year} onChange={(v) => setDraft((d) => ({ ...d, year: v }))} options={optionLists.years} />
+                <FilterSelect
+                  label="Brand / set"
+                  value={draft.brandSet}
+                  onChange={(v) => setDraft((d) => ({ ...d, brandSet: v }))}
+                  options={optionLists.brandSets}
+                />
+                <FilterSelect label="Parallel" value={draft.parallel} onChange={(v) => setDraft((d) => ({ ...d, parallel: v }))} options={optionLists.parallels} />
+                <FilterSelect label="Grade" value={draft.grade} onChange={(v) => setDraft((d) => ({ ...d, grade: v }))} options={optionLists.grades} />
+                <FilterSelect label="Grader" value={draft.grader} onChange={(v) => setDraft((d) => ({ ...d, grader: v }))} options={optionLists.graders} />
+                <FilterSelect label="Platform" value={draft.platform} onChange={(v) => setDraft((d) => ({ ...d, platform: v }))} options={optionLists.platforms} />
+                <FilterSelect
+                  label="Slab"
+                  value={draft.graded}
+                  onChange={(v) => setDraft((d) => ({ ...d, graded: v as GradedFilter }))}
+                  options={['All', 'Graded', 'Raw']}
+                />
+                <FilterSelect label="Auto" value={draft.autoF} onChange={(v) => setDraft((d) => ({ ...d, autoF: v as Tri }))} options={['All', 'Yes', 'No']} />
+                <FilterSelect label="Patch" value={draft.patchF} onChange={(v) => setDraft((d) => ({ ...d, patchF: v as Tri }))} options={['All', 'Yes', 'No']} />
+                <FilterSelect
+                  label="Numbered"
+                  value={draft.numberedF}
+                  onChange={(v) => setDraft((d) => ({ ...d, numberedF: v as NumberedFilter }))}
+                  options={['All', 'Numbered', 'Not numbered']}
+                />
+              </div>
+              <div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+                <label className="text-sm">
+                  <span className="text-xs text-fg-muted">Purchase from</span>
+                  <input
+                    type="date"
+                    value={draft.dateFrom}
+                    onChange={(e) => setDraft((d) => ({ ...d, dateFrom: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-border bg-bg-muted px-2 py-2 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="text-xs text-fg-muted">Purchase to</span>
+                  <input
+                    type="date"
+                    value={draft.dateTo}
+                    onChange={(e) => setDraft((d) => ({ ...d, dateTo: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-border bg-bg-muted px-2 py-2 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="text-xs text-fg-muted">Min cost ($)</span>
+                  <input
+                    value={draft.costMin}
+                    onChange={(e) => setDraft((d) => ({ ...d, costMin: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-border bg-bg-muted px-2 py-2 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                </label>
+                <label className="text-sm">
+                  <span className="text-xs text-fg-muted">Max cost ($)</span>
+                  <input
+                    value={draft.costMax}
+                    onChange={(e) => setDraft((d) => ({ ...d, costMax: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-border bg-bg-muted px-2 py-2 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/30"
+                  />
+                </label>
+              </div>
+            </div>
+            <div className="flex shrink-0 gap-2 border-t border-border p-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setDraft({ ...EMPTY_FILTERS });
+                  setApplied({ ...EMPTY_FILTERS });
+                  setFilterOpen(false);
+                }}
+                className="flex-1 rounded-xl border border-border bg-bg-muted/50 py-2.5 text-sm font-medium text-fg transition hover:bg-bg-muted/80"
+              >
+                Clear all
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setApplied({ ...draft });
+                  setFilterOpen(false);
+                }}
+                className="flex-1 rounded-xl bg-accent py-2.5 text-sm font-semibold text-accent-fg transition hover:opacity-95"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
+
       {bulkEditOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-bg-elevated/95 p-5 shadow-2xl backdrop-blur">
             <div className="text-sm font-semibold text-fg">Bulk edit {selectedIds.length} card(s)</div>
             <div className="mt-2 text-sm text-fg-muted">Check a field to update it on every selected card. Leave the value empty to clear.</div>
             <div className="mt-4 space-y-3">
               <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-1"
-                  checked={bulkApplySport}
-                  onChange={(e) => setBulkApplySport(e.target.checked)}
-                />
+                <input type="checkbox" className="mt-1" checked={bulkApplySport} onChange={(e) => setBulkApplySport(e.target.checked)} />
                 <span className="min-w-0 flex-1">
                   <span className="text-fg-muted">Sport</span>
                   <input
@@ -820,12 +1188,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                 </span>
               </label>
               <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-1"
-                  checked={bulkApplyTeam}
-                  onChange={(e) => setBulkApplyTeam(e.target.checked)}
-                />
+                <input type="checkbox" className="mt-1" checked={bulkApplyTeam} onChange={(e) => setBulkApplyTeam(e.target.checked)} />
                 <span className="min-w-0 flex-1">
                   <span className="text-fg-muted">Team</span>
                   <input
@@ -838,9 +1201,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
               </label>
             </div>
             {bulkError ? (
-              <div className="mt-4 rounded-xl border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-sm text-red-200">
-                {bulkError}
-              </div>
+              <div className="mt-4 rounded-xl border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-sm text-red-200">{bulkError}</div>
             ) : null}
             <div className="mt-5 flex items-center justify-end gap-2">
               <button
@@ -894,16 +1255,14 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
       ) : null}
 
       {confirmBulkDelete ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-bg-elevated/95 p-5 shadow-2xl backdrop-blur">
             <div className="text-sm font-semibold text-fg">Delete {selectedIds.length} card(s)?</div>
             <div className="mt-2 text-sm text-fg-muted">
               This removes selected cards and their linked screenshots and transactions. This can’t be undone.
             </div>
             {bulkError ? (
-              <div className="mt-4 rounded-xl border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-sm text-red-200">
-                {bulkError}
-              </div>
+              <div className="mt-4 rounded-xl border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-sm text-red-200">{bulkError}</div>
             ) : null}
             <div className="mt-5 flex items-center justify-end gap-2">
               <button
@@ -941,14 +1300,12 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
       ) : null}
 
       {confirmSingleDelete ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-4">
           <div className="w-full max-w-md rounded-2xl border border-border bg-bg-elevated/95 p-5 shadow-2xl backdrop-blur">
             <div className="text-sm font-semibold text-fg">Delete this card?</div>
             <div className="mt-2 text-sm text-fg-muted">This can’t be undone.</div>
             {bulkError ? (
-              <div className="mt-4 rounded-xl border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-sm text-red-200">
-                {bulkError}
-              </div>
+              <div className="mt-4 rounded-xl border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-sm text-red-200">{bulkError}</div>
             ) : null}
             <div className="mt-5 flex items-center justify-end gap-2">
               <button
@@ -1009,7 +1366,7 @@ function FilterSelect({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="min-w-0 rounded-xl border border-border bg-bg-muted px-2 py-1.5 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/40"
+        className="min-w-0 rounded-xl border border-border bg-bg-muted px-2 py-2 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/30"
       >
         {options.map((s) => (
           <option key={s} value={s}>

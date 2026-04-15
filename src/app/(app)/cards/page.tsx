@@ -17,13 +17,11 @@ export default async function CardsPage() {
     <div className="space-y-8">
       <div>
         <div className="text-2xl font-semibold tracking-tight text-fg">Cards</div>
-        <div className="mt-2 text-sm text-fg-muted">
-          Browse, filter, and manage your collection. Open a row for the full record.
-        </div>
+        <div className="mt-1.5 text-sm text-fg-muted/90">Inventory — table for precision, grid for a quick visual pass.</div>
       </div>
 
-      <Card>
-        <CardHeader title="Inventory" subtitle={rows ? `${rows.length} cards` : '—'} />
+      <Card className="border-border/60">
+        <CardHeader title="Collection" subtitle={rows ? `${rows.length} cards` : '—'} />
         <div className="mt-4">
           {error ? (
             <div className="space-y-2 text-sm text-fg-muted">

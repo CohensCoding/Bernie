@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { formatUsdFromCents } from '@/lib/money';
 import { getDashboardData } from '@/lib/db/portfolio';
-import { SpendBars } from '@/components/viz/SpendBars';
+import { SpendSportDonut } from '@/components/viz/SpendSportDonut';
 import { ActivityChart } from '@/components/viz/ActivityChart';
 
 export const dynamic = 'force-dynamic';
@@ -42,58 +42,56 @@ export default async function DashboardPage() {
 
       {!data ? null : (
         <>
-          <Card className="border-border/80 bg-gradient-to-b from-bg-elevated/80 to-bg-muted/30 px-6 py-8 sm:px-10 sm:py-10">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-fg-muted">Total invested</div>
-            <div className="mt-2 text-4xl font-semibold tracking-tight text-fg sm:text-5xl">
+          <div className="rounded-2xl border border-border/70 bg-bg-elevated/50 px-6 py-8 sm:px-8 sm:py-9">
+            <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-fg-muted/90">Total invested</div>
+            <div className="mt-3 text-4xl font-semibold tracking-tight text-fg sm:text-[2.75rem] sm:leading-none">
               {formatUsdFromCents(data.kpis.totalSpendCents)}
             </div>
-            <p className="mt-4 max-w-xl text-sm leading-relaxed text-fg-muted">
-              <span className="font-medium text-fg">{data.kpis.totalCards}</span> cards · avg purchase{' '}
-              <span className="font-medium text-fg">{formatUsdFromCents(data.kpis.avgPurchasePriceCents)}</span> ·{' '}
-              <span className="font-medium text-fg">{data.kpis.uniquePlayers}</span> unique players
+            <p className="mt-5 text-sm text-fg-muted/95">
+              <span className="text-fg/90">{data.kpis.totalCards}</span> cards
+              <span className="mx-2 text-fg-muted/40">·</span>
+              avg <span className="text-fg/90">{formatUsdFromCents(data.kpis.avgPurchasePriceCents)}</span>
+              <span className="mx-2 text-fg-muted/40">·</span>
+              <span className="text-fg/90">{data.kpis.uniquePlayers}</span> players
             </p>
-            <div className="mt-6">
-              <Link
-                href="/portfolio"
-                className="text-sm font-medium text-accent underline-offset-4 hover:underline"
-              >
-                Explore portfolio insights
+            <div className="mt-6 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              <Link href="/portfolio" className="text-fg-muted transition hover:text-accent">
+                Portfolio insights
               </Link>
-              <span className="mx-2 text-fg-muted/50">·</span>
-              <Link href="/cards" className="text-sm font-medium text-accent underline-offset-4 hover:underline">
-                Manage cards
+              <Link href="/cards" className="text-fg-muted transition hover:text-accent">
+                Cards
               </Link>
             </div>
-          </Card>
+          </div>
 
-          <Card className="overflow-hidden">
+          <Card className="overflow-hidden border-border/60">
             <CardHeader title="Purchase activity" subtitle="Spend over time" />
-            <div className="mt-2 h-[340px] sm:h-[400px]">
+            <div className="mt-4 h-[300px] px-2 pb-2 sm:h-[360px] sm:px-4 sm:pb-4">
               <ActivityChart points={data.activityByMonth} />
             </div>
           </Card>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
-            <Card className="lg:col-span-5">
-              <CardHeader title="Spend by sport" subtitle="Where your cost basis lives" />
-              <div className="mt-4">
-                <SpendBars rows={data.spendBySport.slice(0, 8)} />
+            <Card className="border-border/60 lg:col-span-5">
+              <CardHeader title="Spend by sport" subtitle="Share of cost basis" />
+              <div className="mt-2">
+                <SpendSportDonut rows={data.spendBySport.slice(0, 8)} />
               </div>
             </Card>
 
-            <Card className="lg:col-span-7">
+            <Card className="border-border/60 lg:col-span-7">
               <CardHeader title="Top positions" subtitle="By player spend" />
-              <div className="mt-4 space-y-2">
+              <div className="mt-4 space-y-1.5">
                 {topPositions.length === 0 ? (
                   <div className="text-sm text-fg-muted">No purchase data yet.</div>
                 ) : (
                   topPositions.map((row) => (
                     <div
                       key={row.key}
-                      className="flex items-center justify-between rounded-xl border border-border/60 bg-bg-muted/35 px-4 py-3"
+                      className="flex items-center justify-between rounded-lg border border-border/40 bg-bg-muted/20 px-3 py-2.5"
                     >
-                      <div className="min-w-0 truncate text-sm font-medium text-fg">{row.key}</div>
-                      <div className="shrink-0 pl-4 text-sm tabular-nums text-fg-muted">
+                      <div className="min-w-0 truncate text-sm text-fg">{row.key}</div>
+                      <div className="shrink-0 pl-3 text-sm tabular-nums text-fg-muted">
                         {formatUsdFromCents(row.spendCents)}
                       </div>
                     </div>

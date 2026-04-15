@@ -38,29 +38,32 @@ export function ActivityChart({ points }: { points: Point[] }) {
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={points} margin={{ top: 16, right: 16, left: 4, bottom: 12 }}>
+      <AreaChart data={points} margin={{ top: 24, right: 20, left: 6, bottom: 20 }}>
         <defs>
           <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="hsl(156 72% 45%)" stopOpacity={0.45} />
             <stop offset="95%" stopColor="hsl(156 72% 45%)" stopOpacity={0.02} />
           </linearGradient>
         </defs>
-        <CartesianGrid stroke="hsl(217 19% 22% / 0.35)" strokeDasharray="5 8" vertical={false} />
+        <CartesianGrid stroke="hsl(217 19% 35% / 0.18)" strokeDasharray="4 10" vertical={false} />
         <XAxis
           dataKey="month"
           tickFormatter={formatMonthLabel}
-          stroke="hsl(215 20% 70%)"
-          fontSize={12}
+          stroke="hsl(215 16% 45%)"
+          tick={{ fill: 'hsl(215 14% 52%)', fontSize: 11 }}
           tickLine={false}
           axisLine={false}
-          minTickGap={28}
+          minTickGap={32}
+          dy={4}
         />
         <YAxis
-          stroke="hsl(215 20% 70%)"
-          fontSize={12}
+          stroke="hsl(215 16% 45%)"
+          tick={{ fill: 'hsl(215 14% 52%)', fontSize: 11 }}
           tickLine={false}
           axisLine={false}
           tickFormatter={(v) => formatUsdCompactFromCents(Number(v))}
+          width={48}
+          dx={-2}
         />
         <Tooltip
           contentStyle={{
