@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getValidEbayAccessToken } from '@/lib/ebay/token';
+import { EBAY_GET_ORDERS_MAX_DAYS } from '@/lib/ebay/purchases/constants';
 import { tradingGetOrdersProvider } from '@/lib/ebay/purchases/tradingProvider';
 
 const QuerySchema = z.object({
@@ -15,7 +16,7 @@ export async function GET(req: Request) {
 
     const access = await getValidEbayAccessToken();
     const provider = tradingGetOrdersProvider();
-    const list = await provider.listRecentPurchases({ accessToken: access, days: 90 });
+    const list = await provider.listRecentPurchases({ accessToken: access, days: EBAY_GET_ORDERS_MAX_DAYS });
     const found = list.find((p) => p.id === parsed.data.id) ?? null;
     if (!found) return NextResponse.json({ error: 'Purchase not found.' }, { status: 404 });
 

@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getEbayConnection } from '@/lib/ebay/connection';
 import { getValidEbayAccessToken } from '@/lib/ebay/token';
+import { EBAY_GET_ORDERS_MAX_DAYS } from '@/lib/ebay/purchases/constants';
 import { tradingGetOrdersProvider } from '@/lib/ebay/purchases/tradingProvider';
 
 const QuerySchema = z.object({
-  days: z.coerce.number().int().min(1).max(90).default(90),
+  days: z.coerce.number().int().min(1).max(EBAY_GET_ORDERS_MAX_DAYS).default(EBAY_GET_ORDERS_MAX_DAYS),
 });
 
 export async function GET(req: Request) {

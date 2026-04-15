@@ -16,6 +16,7 @@ export type EbayPurchase = {
 };
 
 export type EbayPurchaseProvider = {
+  /** `days` is clamped to at most 30 for Trading `GetOrders` `NumberOfDays`. */
   listRecentPurchases: (args: { accessToken: string; days: number }) => Promise<EbayPurchase[]>;
 };
 

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { EBAY_GET_ORDERS_MAX_DAYS } from '@/lib/ebay/purchases/constants';
 import type { EbayPurchase } from '@/lib/ebay/purchases/types';
 import { formatUsdFromCents } from '@/lib/money';
 
@@ -59,7 +60,9 @@ export function EbayImportClient() {
       setError(null);
     }
     try {
-      const res = await fetch('/api/import/ebay/purchases?days=90', { cache: 'no-store' });
+      const res = await fetch(`/api/import/ebay/purchases?days=${EBAY_GET_ORDERS_MAX_DAYS}`, {
+        cache: 'no-store',
+      });
       const json = (await res.json()) as {
         ok?: boolean;
         error?: string;

@@ -1,4 +1,5 @@
 import { XMLParser } from 'fast-xml-parser';
+import { EBAY_GET_ORDERS_MAX_DAYS } from './constants';
 import type { EbayPurchase, EbayPurchaseProvider } from './types';
 
 function asArray<T>(v: T | T[] | undefined | null): T[] {
@@ -24,7 +25,8 @@ export function tradingGetOrdersProvider(): EbayPurchaseProvider {
   return {
     async listRecentPurchases({ accessToken, days }) {
       const endpoint = 'https://api.ebay.com/ws/api.dll';
-      const xml = `<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<GetOrdersRequest xmlns=\"urn:ebay:apis:eBLBaseComponents\">\n  <OrderRole>Buyer</OrderRole>\n  <NumberOfDays>${Math.max(1, Math.min(90, days))}</NumberOfDays>\n  <OrderStatus>Completed</OrderStatus>\n  <Pagination>\n    <EntriesPerPage>50</EntriesPerPage>\n    <PageNumber>1</PageNumber>\n  </Pagination>\n</GetOrdersRequest>`;
+      const windowDays = Math.max(1, Math.min(EBAY_GET_ORDERS_MAX_DAYS, days));
+      const xml = `<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<GetOrdersRequest xmlns=\"urn:ebay:apis:eBLBaseComponents\">\n  <OrderRole>Buyer</OrderRole>\n  <NumberOfDays>${windowDays}</NumberOfDays>\n  <OrderStatus>Completed</OrderStatus>\n  <Pagination>\n    <EntriesPerPage>50</EntriesPerPage>\n    <PageNumber>1</PageNumber>\n  </Pagination>\n</GetOrdersRequest>`;
 
       const res = await fetch(endpoint, {
         method: 'POST',

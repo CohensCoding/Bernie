@@ -10,7 +10,7 @@ export default function EbayImportPage() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-accent">Import</p>
         <h1 className="text-2xl font-semibold tracking-tight text-fg sm:text-3xl">Import from eBay</h1>
         <p className="text-sm text-fg-muted">
-          Connect, browse your last 90 days, and choose what to add. Nothing imports automatically.
+          Connect, browse your last 30 days, and choose what to add. Nothing imports automatically.
         </p>
       </header>
 
