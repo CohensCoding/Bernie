@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { ExtractionFailurePanel, ExtractionProgressView } from '@/components/ingest/IngestPhaseViews';
 import { ExtractionReviewForm } from '@/components/ingest/ExtractionReviewForm';
 import { emptyExtractionPayload, type ExtractionPayload } from '@/types/extraction';
 
-type Status = 'extracting' | 'parsed' | 'failed';
+type Phase = 'extracting' | 'parsed' | 'failed' | 'manual_entry';
 
 export function IngestReviewClient({
   cardId,
@@ -13,9 +14,12 @@ export function IngestReviewClient({
   cardId: string;
   assets: Array<{ id: string; signed_url: string | null; label: string }>;
 }) {
-  const [status, setStatus] = useState<Status>('extracting');
+  const [phase, setPhase] = useState<Phase>('extracting');
   const [error, setError] = useState<string | null>(null);
+  const [failureKind, setFailureKind] = useState<string | null>(null);
   const [extraction, setExtraction] = useState<ExtractionPayload>(emptyExtractionPayload());
+  const [runId, setRunId] = useState(0);
+  const [retryBusy, setRetryBusy] = useState(false);
 
   const assetIds = useMemo(() => assets.map((a) => a.id).slice(0, 3), [assets]);
 
@@ -23,72 +27,98 @@ export function IngestReviewClient({
     let cancelled = false;
 
     async function run() {
-      setStatus('extracting');
+      setPhase('extracting');
       setError(null);
+      setFailureKind(null);
+
       try {
         if (assetIds.length === 0) {
-          setStatus('failed');
+          if (cancelled) return;
+          setFailureKind('no_screenshots');
           setError('No screenshots found. Upload 1–3 screenshots before running extraction.');
+          setExtraction(emptyExtractionPayload());
+          setPhase('failed');
           return;
         }
 
         const res = await fetch(`/api/ingest/extract?cardId=${cardId}&assetIds=${assetIds.join(',')}`, {
           method: 'GET',
-          headers: { 'accept': 'application/json' },
+          headers: { accept: 'application/json' },
         });
-        const json = (await res.json()) as any;
-        if (!res.ok) throw new Error(json?.error ?? 'Extraction failed.');
-        if (!json?.extraction) throw new Error('Extractor returned no data.');
+        const json = (await res.json()) as {
+          error?: string;
+          errorKind?: string;
+          extraction?: ExtractionPayload;
+        };
 
         if (cancelled) return;
+
+        if (!res.ok) {
+          const kind = json.errorKind ?? null;
+          const message =
+            json.error ??
+            (kind === 'openai_quota_billing'
+              ? 'Extraction could not run because the OpenAI API project has no available quota or billing is not active.'
+              : 'Extraction could not run.');
+          setFailureKind(kind);
+          setError(message);
+          setExtraction(emptyExtractionPayload());
+          setPhase('failed');
+          return;
+        }
+
+        if (!json?.extraction) throw new Error('Extractor returned no data.');
+
         setExtraction(json.extraction as ExtractionPayload);
-        setStatus('parsed');
+        setFailureKind(null);
+        setPhase('parsed');
       } catch (e) {
         if (cancelled) return;
-        setStatus('failed');
+        setFailureKind('client_error');
         setError(e instanceof Error ? e.message : 'Extraction failed.');
         setExtraction(emptyExtractionPayload());
+        setPhase('failed');
+      } finally {
+        if (!cancelled) setRetryBusy(false);
       }
     }
 
-    run();
+    void run();
     return () => {
       cancelled = true;
     };
-  }, [assetIds, cardId]);
+  }, [assetIds, cardId, runId]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm text-fg">
-          Status:{' '}
-          {status === 'extracting' ? (
-            <span className="text-fg-muted">Extracting…</span>
-          ) : status === 'parsed' ? (
-            <span className="text-accent">Parsed</span>
-          ) : (
-            <span className="text-red-300">Failed</span>
-          )}
-        </div>
-        <div className="text-xs text-fg-muted">
-          Using <span className="text-fg">{Math.min(assetIds.length, 3)}</span> screenshot(s)
-        </div>
-      </div>
+    <div className="min-h-[200px]">
+      {phase === 'extracting' ? <ExtractionProgressView assets={assets} /> : null}
 
-      {status === 'failed' && error ? (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">
-          {error}
-        </div>
+      {phase === 'failed' && error ? (
+        <ExtractionFailurePanel
+          error={error}
+          failureKind={failureKind}
+          cardId={cardId}
+          retrying={retryBusy}
+          onRetry={() => {
+            setRetryBusy(true);
+            setRunId((n) => n + 1);
+          }}
+          onManualEntry={() => setPhase('manual_entry')}
+        />
       ) : null}
 
-      <ExtractionReviewForm
-        cardId={cardId}
-        assets={assets}
-        extraction={extraction}
-        extractionStatus={status}
-        extractionError={error}
-      />
+      {(phase === 'parsed' || phase === 'manual_entry') && (
+        <div className="ingest-fade-in pt-2">
+          <ExtractionReviewForm
+            cardId={cardId}
+            assets={assets}
+            extraction={extraction}
+            extractionStatus={phase === 'parsed' ? 'parsed' : 'failed'}
+            extractionFailureKind={failureKind}
+            entryMode={phase === 'manual_entry' ? 'manual' : 'normal'}
+          />
+        </div>
+      )}
     </div>
   );
 }
-

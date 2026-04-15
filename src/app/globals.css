@@ -16,3 +16,36 @@ body {
   border-color: theme(colors.border);
 }
 
+@keyframes ingest-progress-slide {
+  0% {
+    transform: translateX(-100%);
+    width: 35%;
+  }
+  50% {
+    width: 55%;
+  }
+  100% {
+    transform: translateX(280%);
+    width: 35%;
+  }
+}
+
+.ingest-progress-indeterminate {
+  animation: ingest-progress-slide 1.8s ease-in-out infinite;
+}
+
+@keyframes ingest-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ingest-fade-in {
+  animation: ingest-fade-in 0.45s ease-out both;
+}
+

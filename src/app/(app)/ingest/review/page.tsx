@@ -30,32 +30,42 @@ export default async function IngestReviewPage({
       label: a.path.split('/').pop() ?? 'screenshot',
     })) ?? [];
 
+  const cardLabel =
+    detail?.card.player_name?.trim() ||
+    detail?.card.title_raw?.trim() ||
+    (detail?.card.brand && detail?.card.set_name ? `${detail.card.brand} · ${detail.card.set_name}` : null) ||
+    'Draft card';
+
   return (
-    <div className="space-y-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-xs text-fg-muted">
-            <Link href="/portfolio" className="hover:text-fg">
+    <div className="mx-auto max-w-5xl space-y-10 pb-14">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+        <header className="min-w-0 space-y-3">
+          <nav className="text-xs text-fg-muted">
+            <Link href="/portfolio" className="transition hover:text-fg">
               Portfolio
             </Link>
-            <span className="mx-2">/</span>
+            <span className="mx-2 text-fg-muted/50">/</span>
             {detail ? (
               <>
-                <Link href={`/cards/${detail.card.id}`} className="hover:text-fg">
+                <Link href={`/cards/${detail.card.id}`} className="transition hover:text-fg">
                   Card
                 </Link>
-                <span className="mx-2">/</span>
+                <span className="mx-2 text-fg-muted/50">/</span>
               </>
             ) : null}
-            <span className="text-fg">Review</span>
-          </div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight text-fg">Review extracted details</div>
-          <div className="mt-2 text-sm text-fg-muted">Edit fields, then save to create the transaction and update the card.</div>
-        </div>
+            <span className="font-medium text-fg">Review</span>
+          </nav>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-accent">Step 3 · Confirm</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-fg sm:text-3xl">Review extracted details</h1>
+          <p className="max-w-2xl text-sm leading-relaxed text-fg-muted">
+            We pre-filled fields from your screenshots. Adjust anything that looks off, then save—your portfolio updates
+            instantly.
+          </p>
+        </header>
         {detail ? (
           <Link
             href={`/cards/${detail.card.id}`}
-            className="rounded-xl border border-border bg-bg-muted px-3 py-2 text-sm text-fg hover:bg-bg-elevated/60"
+            className="inline-flex shrink-0 items-center justify-center rounded-xl border border-border/90 bg-bg-muted/50 px-4 py-2.5 text-sm font-medium text-fg transition hover:border-border hover:bg-bg-elevated/60"
           >
             Back to card
           </Link>
@@ -70,12 +80,12 @@ export default async function IngestReviewPage({
       ) : null}
 
       {detail ? (
-        <UiCard>
+        <UiCard className="overflow-hidden px-5 py-6 sm:px-8 sm:py-8">
           <CardHeader
-            title={detail.card.player_name ?? 'Card'}
-            subtitle={`${detail.card.year ?? '—'} · ${detail.card.brand ?? '—'} · ${detail.card.set_name ?? '—'}`}
+            title={cardLabel}
+            subtitle="Draft · extraction runs when this page opens"
           />
-          <div className="mt-5">
+          <div className="mt-8">
             <IngestReviewClient cardId={detail.card.id} assets={assets} />
           </div>
         </UiCard>
@@ -83,4 +93,3 @@ export default async function IngestReviewPage({
     </div>
   );
 }
-

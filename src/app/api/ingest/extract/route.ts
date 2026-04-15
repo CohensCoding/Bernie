@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 import { extractFromAssets } from '@/lib/ingest/extractFromAssets';
+import { getOpenAiModel, getOpenAiRuntimeSummary } from '@/lib/openai/server';
 import { ExtractionPayloadSchema } from '@/types/extraction';
 
 const QuerySchema = z.object({
@@ -22,6 +23,7 @@ export async function GET(req: Request) {
 
   const supabase = getSupabaseServerClient();
   const debugId = crypto.randomUUID();
+  const openAiSummary = getOpenAiRuntimeSummary();
 
   try {
     let q = supabase
@@ -57,14 +59,50 @@ export async function GET(req: Request) {
       });
     }
 
-    console.log('[extract]', { debugId, cardId: parsed.data.cardId, assetCount: signedAssets.length, assetPaths: signedAssets.map((a) => a.path) });
+    let modelName: string;
+    try {
+      modelName = getOpenAiModel();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Missing OpenAI configuration.';
+      console.log('[extract_openai_env]', { debugId, openAi: openAiSummary, error: msg });
+      return NextResponse.json({ error: msg, errorKind: 'openai_env', debugId }, { status: 500 });
+    }
+
+    console.log('[extract]', {
+      debugId,
+      cardId: parsed.data.cardId,
+      assetCount: signedAssets.length,
+      assetPaths: signedAssets.map((a) => a.path),
+      openAi: openAiSummary,
+      model: modelName,
+    });
 
     const result = await extractFromAssets(
       signedAssets.map((a) => ({ id: a.id, bucket: a.bucket, path: a.path, signed_url: a.signed_url })),
     );
     if (!result.ok) {
-      console.log('[extract_failed]', { debugId, error: result.error });
-      return NextResponse.json({ error: result.error, debugId }, { status: 500 });
+      const httpStatus =
+        result.failureKind === 'openai_quota_billing'
+          ? 503
+          : result.failureKind === 'openai_rate_limit'
+            ? 429
+            : 500;
+      console.log('[extract_openai_failed]', {
+        debugId,
+        openAi: openAiSummary,
+        model: modelName,
+        failureKind: result.failureKind,
+        openai: result.openaiLog,
+      });
+      return NextResponse.json(
+        {
+          error: result.error,
+          errorKind: result.failureKind,
+          debugId,
+          model: modelName,
+        },
+        { status: httpStatus },
+      );
     }
 
     // Validate output once more defensively
@@ -107,8 +145,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, debugId, model: result.model, extraction: validated.data });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
-    console.log('[extract_exception]', { debugId, error: msg });
-    return NextResponse.json({ error: msg, debugId }, { status: 500 });
+    console.log('[extract_exception]', { debugId, error: msg, openAi: openAiSummary });
+    return NextResponse.json({ error: msg, errorKind: 'server_exception', debugId }, { status: 500 });
   }
 }
 

@@ -1,5 +1,12 @@
+import { APIError } from 'openai';
 import { ExtractionPayloadSchema, emptyExtractionPayload, type ExtractionPayload } from '@/types/extraction';
 import { getOpenAiClient, getOpenAiModel } from '@/lib/openai/server';
+import {
+  classifyOpenAiHttpError,
+  serializeOpenAiApiError,
+  userMessageForOpenAiFailure,
+  type OpenAiFailureKind,
+} from '@/lib/openai/errors';
 import { ExtractionPayloadJsonSchema } from '@/lib/ingest/extractionSchemaJson';
 
 export type AssetForExtraction = {
@@ -11,7 +18,14 @@ export type AssetForExtraction = {
 
 export type ExtractionResult =
   | { ok: true; extraction: ExtractionPayload; model: string; raw: unknown }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      /** Safe message for JSON responses */
+      error: string;
+      failureKind: OpenAiFailureKind;
+      /** Structured details for server logs only */
+      openaiLog: Record<string, unknown>;
+    };
 
 function mergeWithEmpty(p: unknown): ExtractionPayload {
   const base = emptyExtractionPayload();
@@ -22,7 +36,14 @@ function mergeWithEmpty(p: unknown): ExtractionPayload {
 }
 
 export async function extractFromAssets(assets: AssetForExtraction[]): Promise<ExtractionResult> {
-  if (assets.length === 0) return { ok: false, error: 'No screenshots provided.' };
+  if (assets.length === 0) {
+    return {
+      ok: false,
+      error: 'No screenshots provided.',
+      failureKind: 'openai_unknown',
+      openaiLog: { reason: 'no_assets' },
+    };
+  }
 
   const client = getOpenAiClient();
   const model = getOpenAiModel();
@@ -86,7 +107,22 @@ export async function extractFromAssets(assets: AssetForExtraction[]): Promise<E
     const extraction = mergeWithEmpty(json);
     return { ok: true, extraction, model, raw: resp };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Extractor failed.' };
+    if (e instanceof APIError) {
+      const kind = classifyOpenAiHttpError(e.status, e.message, e.code);
+      return {
+        ok: false,
+        error: userMessageForOpenAiFailure(kind),
+        failureKind: kind,
+        openaiLog: serializeOpenAiApiError(e),
+      };
+    }
+    const msg = e instanceof Error ? e.message : 'Extractor failed.';
+    return {
+      ok: false,
+      error: msg,
+      failureKind: 'openai_unknown',
+      openaiLog: serializeOpenAiApiError(e),
+    };
   }
 }
 
