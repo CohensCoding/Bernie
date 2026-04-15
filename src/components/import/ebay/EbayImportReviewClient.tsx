@@ -56,6 +56,10 @@ export function EbayImportReviewClient() {
 
         const parsed = lightParseTitle(p.title);
         setYear(parsed.year ? String(parsed.year) : '');
+        setPlayer(parsed.player_hint ?? '');
+        setBrand(parsed.brand ?? '');
+        setSetName(parsed.set_hint ?? '');
+        setTeam(parsed.team_hint ?? '');
         setGraded(parsed.graded);
         setGrader(parsed.grading_company ?? '');
         setGrade(parsed.grade ?? '');

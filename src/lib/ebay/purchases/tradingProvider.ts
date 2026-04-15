@@ -21,6 +21,79 @@ function centsFromMoney(v: any): number {
   return Math.round(num * 100);
 }
 
+/**
+ * eBay AmountType in XML often parses as `{ currencyID: "USD", "#text": "12.34" }` (fast-xml-parser).
+ * Older shapes used `value` / `Value`.
+ */
+function moneyCentsAndCurrency(v: unknown): { cents: number; currency: string | null } {
+  if (v == null || v === '') return { cents: 0, currency: null };
+
+  const fromObject = (o: Record<string, unknown>): { cents: number; currency: string | null } => {
+    const raw =
+      o['#text'] ??
+      o['_'] ??
+      o.value ??
+      o.Value ??
+      (typeof (o as any)[0] === 'string' || typeof (o as any)[0] === 'number' ? (o as any)[0] : null);
+    const cur = (o.currencyID ?? (o as any)['@_currencyID'] ?? o.Currency ?? null) as string | null;
+    if (raw == null) return { cents: 0, currency: cur ? String(cur) : null };
+    const cents = centsFromMoney(typeof raw === 'number' ? String(raw) : raw);
+    return { cents, currency: cur ? String(cur) : null };
+  };
+
+  if (typeof v === 'string' || typeof v === 'number') {
+    return { cents: centsFromMoney(v), currency: null };
+  }
+  if (Array.isArray(v)) {
+    for (const el of v) {
+      const r = moneyCentsAndCurrency(el);
+      if (r.cents > 0) return r;
+    }
+    return { cents: 0, currency: null };
+  }
+  if (typeof v === 'object') return fromObject(v as Record<string, unknown>);
+  return { cents: 0, currency: null };
+}
+
+function firstLineItemCents(
+  t: Record<string, unknown>,
+  o: Record<string, unknown>,
+): { cents: number; currency: string | null } {
+  const item = t.Item as Record<string, unknown> | undefined;
+  const selling = item?.SellingStatus as Record<string, unknown> | undefined;
+  const tries = [
+    t.TransactionPrice,
+    t.ConvertedTransactionPrice,
+    t.AmountPaid,
+    selling?.CurrentPrice,
+    o.Total,
+    o.AmountPaid,
+    o.Subtotal,
+    o.TotalCost,
+  ];
+  for (const cand of tries) {
+    const r = moneyCentsAndCurrency(cand);
+    if (r.cents > 0) return r;
+  }
+  return { cents: 0, currency: null };
+}
+
+function firstImageUrl(t: Record<string, unknown>): string | null {
+  const item = t.Item as Record<string, unknown> | undefined;
+  if (!item) return null;
+  const pd = item.PictureDetails as Record<string, unknown> | undefined;
+  if (!pd) return null;
+  const gallery = pd.GalleryURL;
+  if (gallery) {
+    const g = Array.isArray(gallery) ? gallery[0] : gallery;
+    if (g) return String(g);
+  }
+  const pic = pd.PictureURL;
+  if (!pic) return null;
+  if (Array.isArray(pic)) return pic.length ? String(pic[0]) : null;
+  return String(pic);
+}
+
 export function tradingGetOrdersProvider(): EbayPurchaseProvider {
   return {
     async listRecentPurchases({ accessToken, days }) {
@@ -64,22 +137,27 @@ export function tradingGetOrdersProvider(): EbayPurchaseProvider {
         const orderId = o?.OrderID ?? null;
         const txs = asArray(o?.TransactionArray?.Transaction);
         for (const t of txs) {
-          const title = t?.Item?.Title ?? o?.OrderLineItemID ?? 'eBay purchase';
-          const itemId = t?.Item?.ItemID ?? null;
-          const transactionId = t?.TransactionID ?? null;
-          const listingUrl = t?.Item?.ListingDetails?.ViewItemURL ?? null;
-          const pictureUrl =
-            t?.Item?.PictureDetails?.GalleryURL ??
-            t?.Item?.PictureDetails?.PictureURL ??
-            t?.Item?.GalleryURL ??
-            null;
+          const tx = t as Record<string, unknown>;
+          const ord = o as Record<string, unknown>;
+          const title = (tx?.Item as any)?.Title ?? ord?.OrderLineItemID ?? 'eBay purchase';
+          const itemId = (tx?.Item as any)?.ItemID ?? null;
+          const transactionId = tx?.TransactionID ?? null;
+          const listingUrlRaw = (tx.Item as Record<string, unknown> | undefined)?.ListingDetails as
+            | Record<string, unknown>
+            | undefined;
+          const listingUrl = listingUrlRaw?.ViewItemURL != null ? String(listingUrlRaw.ViewItemURL) : null;
 
-          const paid = t?.ActualShippingCost ?? t?.TransactionPrice ?? o?.Total ?? 0;
-          const total = centsFromMoney(o?.Total ?? paid);
-          const currency = o?.Total?.currencyID ?? paid?.currencyID ?? null;
-          const purchasedAt = safeDate(o?.CreatedTime ?? t?.CreatedDate ?? null);
+          const pictureUrl = firstImageUrl(tx);
 
-          const externalId = [orderId, transactionId].filter(Boolean).join(':') || String(itemId ?? title);
+          const { cents: total, currency } = firstLineItemCents(tx, ord);
+          const purchasedAt = safeDate(
+            (ord.CreatedTime as string | undefined) ?? (tx.CreatedDate as string | undefined) ?? null,
+          );
+
+          const oid = orderId != null ? String(orderId) : null;
+          const tid = transactionId != null ? String(transactionId) : null;
+          const iid = itemId != null ? String(itemId) : null;
+          const externalId = [oid, tid].filter(Boolean).join(':') || String(title);
           out.push({
             id: `ebay:${externalId}`,
             source: 'ebay',
@@ -88,7 +166,7 @@ export function tradingGetOrdersProvider(): EbayPurchaseProvider {
             totalCostCents: total,
             currency: currency ? String(currency) : null,
             imageUrl: pictureUrl ? String(pictureUrl) : null,
-            external: { orderId, transactionId, itemId, listingUrl },
+            external: { orderId: oid, transactionId: tid, itemId: iid, listingUrl },
             raw: { order: o, tx: t },
           });
         }
