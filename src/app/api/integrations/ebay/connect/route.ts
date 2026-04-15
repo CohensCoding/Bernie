@@ -10,7 +10,7 @@ const COOKIE_OPTS = {
   maxAge: 10 * 60, // 10 minutes
 };
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const state = randomState();
     const verifier = pkceVerifier();
@@ -24,7 +24,7 @@ export async function GET() {
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unable to start eBay OAuth.';
     // Redirect back into the app with a readable error instead of a blank 500 page.
-    return NextResponse.redirect(`/import/ebay?error=${encodeURIComponent(msg)}`);
+    return NextResponse.redirect(new URL(`/import/ebay?error=${encodeURIComponent(msg)}`, req.url));
   }
 }
 
