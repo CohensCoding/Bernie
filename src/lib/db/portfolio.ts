@@ -70,12 +70,15 @@ export type DashboardKpis = {
 
 export type SpendBreakdown = { key: string; spendCents: number; count: number };
 export type CountBreakdown = { key: string; count: number };
+export type SportCompositionRow = { key: string; spendCents: number; countCards: number };
 
 export type ActivityPoint = { month: string; spendCents: number; count: number };
 
 export type DashboardData = {
   kpis: DashboardKpis;
   spendBySport: SpendBreakdown[];
+  /** Per-sport drilldown: top players within each sport. */
+  spendBySportPlayers: Record<string, SportCompositionRow[]>;
   spendByTeam: SpendBreakdown[];
   spendByPlayer: SpendBreakdown[];
   spendByBrandSet: SpendBreakdown[];
@@ -192,6 +195,29 @@ export async function getDashboardData(): Promise<DashboardData> {
   const countByBrandSet = countBy((c) => `${keyOrUnknown(c.brand)} · ${keyOrUnknown(c.set_name)}`);
   const countByGradingCompany = countBy((c) => (c.graded ? c.grading_company ?? 'Unknown' : 'Raw'));
 
+  // Sport -> Player composition (cards + spend).
+  const comp = new Map<string, Map<string, { spendCents: number; cardIds: Set<string> }>>();
+  for (const tx of txList) {
+    const c = cardById.get(tx.card_id);
+    if (!c) continue;
+    const sportKey = keyOrUnknown(c.sport);
+    const playerKey = keyOrUnknown(c.player_name);
+    const sportMap = comp.get(sportKey) ?? new Map<string, { spendCents: number; cardIds: Set<string> }>();
+    const prev = sportMap.get(playerKey) ?? { spendCents: 0, cardIds: new Set<string>() };
+    prev.spendCents += tx.total_cost_cents ?? 0;
+    prev.cardIds.add(tx.card_id);
+    sportMap.set(playerKey, prev);
+    comp.set(sportKey, sportMap);
+  }
+
+  const spendBySportPlayers: Record<string, SportCompositionRow[]> = {};
+  for (const [sportKey, players] of comp.entries()) {
+    spendBySportPlayers[sportKey] = [...players.entries()]
+      .map(([key, v]) => ({ key, spendCents: v.spendCents, countCards: v.cardIds.size }))
+      .sort((a, b) => b.spendCents - a.spendCents)
+      .slice(0, 10);
+  }
+
   const assetCountByCard = new Map<string, number>();
   for (const a of (assets ?? []) as Array<{ card_id: string | null }>) {
     if (!a.card_id) continue;
@@ -266,6 +292,7 @@ export async function getDashboardData(): Promise<DashboardData> {
   return {
     kpis: { totalCards, totalSpendCents, avgPurchasePriceCents, gradedCards, rawCards, uniquePlayers, uniqueSets },
     spendBySport,
+    spendBySportPlayers,
     spendByTeam,
     spendByPlayer,
     spendByBrandSet,

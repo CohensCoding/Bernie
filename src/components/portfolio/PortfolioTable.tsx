@@ -164,6 +164,10 @@ function setDisplayLabel(c: PortfolioRow['card']) {
   return b || s || '—';
 }
 
+function gradeLabelFor(c: PortfolioRow['card']) {
+  return c.graded ? `${c.grading_company ?? ''} ${c.grade ?? ''}`.trim() || 'Graded' : 'Raw';
+}
+
 function isNumbered(c: PortfolioRow['card']) {
   return (c.serial_number != null && c.serial_number > 0) || c.print_run != null;
 }
@@ -844,8 +848,133 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
           </div>
         )
       ) : (
-        <div className="max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-border/80">
-          <table className="w-full table-fixed border-separate border-spacing-0">
+        <>
+          {/* Mobile-first list layout (true table becomes desktop-only). */}
+          <div className="sm:hidden">
+            {sorted.length === 0 ? (
+              <div className="rounded-xl border border-border/60 py-12 text-center text-sm text-fg-muted">No results.</div>
+            ) : (
+              <div className="divide-y divide-border/50 overflow-hidden rounded-2xl border border-border/70 bg-bg-elevated/30">
+                {sorted.map((r) => {
+                  const c = r.card;
+                  const t = r.latestTransaction;
+                  const isSelected = Boolean(selected[c.id]);
+                  return (
+                    <div
+                      key={c.id}
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => navigateRow(c.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          navigateRow(c.id);
+                        }
+                      }}
+                      className="flex items-start gap-3 px-3 py-3 transition hover:bg-bg-elevated/50"
+                    >
+                      <div className="pt-1" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => setSelected((prev) => ({ ...prev, [c.id]: e.target.checked }))}
+                          className="h-4 w-4"
+                          aria-label={isSelected ? 'Deselect card' : 'Select card'}
+                        />
+                      </div>
+                      <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                        {r.thumb_signed_url ? (
+                          <Link
+                            href={`/cards/${c.id}`}
+                            className="block h-12 w-12 overflow-hidden rounded-xl border border-border/60 bg-bg-muted"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={r.thumb_signed_url} alt="" className="h-12 w-12 object-cover" />
+                          </Link>
+                        ) : (
+                          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/50 text-[10px] text-fg-muted">
+                            —
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-semibold text-fg">{c.player_name ?? 'Unknown'}</div>
+                            <div className="mt-0.5 truncate text-xs text-fg-muted">
+                              {c.year ?? '—'} · {setDisplayLabel(c)}
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <div className="text-sm font-semibold tabular-nums text-fg">
+                              {t ? formatUsdFromCents(t.total_cost_cents) : '—'}
+                            </div>
+                            <div className="mt-0.5 text-xs tabular-nums text-fg-muted">{t?.purchase_date ?? ''}</div>
+                          </div>
+                        </div>
+
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <div className="text-xs text-fg-muted">{gradeLabelFor(c)}</div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRowMenu((cur) => (cur === c.id ? null : c.id));
+                            }}
+                            className="rounded-lg border border-border/60 bg-bg-muted/35 px-2.5 py-1.5 text-xs font-medium text-fg transition hover:bg-bg-muted/60"
+                            aria-label="Row actions"
+                          >
+                            ⋯
+                          </button>
+                        </div>
+
+                        {rowMenu === c.id ? (
+                          <div className="mt-2 overflow-hidden rounded-xl border border-border bg-bg-elevated shadow-xl" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRowMenu(null);
+                                router.push(`/cards/${c.id}`);
+                              }}
+                              className="block w-full px-3 py-2 text-left text-sm text-fg hover:bg-bg-muted/60"
+                            >
+                              View
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRowMenu(null);
+                                router.push(`/cards/${c.id}/edit`);
+                              }}
+                              className="block w-full px-3 py-2 text-left text-sm text-fg hover:bg-bg-muted/60"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRowMenu(null);
+                                setConfirmSingleDelete(c.id);
+                                setBulkError(null);
+                              }}
+                              className="block w-full px-3 py-2 text-left text-sm text-red-200 hover:bg-red-500/[0.08]"
+                            >
+                              Delete…
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Desktop/tablet table layout */}
+          <div className="hidden sm:block max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-border/80">
+            <table className="w-full table-fixed border-separate border-spacing-0">
             <thead className="bg-bg-muted/50">
               <tr className="text-left text-[10px] uppercase tracking-wide text-fg-muted/90">
                 <th className="px-3 py-2.5 w-10">
@@ -1129,8 +1258,9 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                 </tr>
               ) : null}
             </tbody>
-          </table>
-        </div>
+            </table>
+          </div>
+        </>
       )}
 
       <div className="text-xs text-fg-muted">

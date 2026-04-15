@@ -49,3 +49,43 @@ body {
   animation: ingest-fade-in 0.45s ease-out both;
 }
 
+@keyframes intro-pack-float {
+  0% {
+    transform: translateY(0px) rotateX(10deg) rotateY(-14deg);
+  }
+  50% {
+    transform: translateY(-10px) rotateX(12deg) rotateY(-8deg);
+  }
+  100% {
+    transform: translateY(0px) rotateX(10deg) rotateY(-14deg);
+  }
+}
+
+@keyframes intro-pack-rotate {
+  0% {
+    transform: rotateZ(-1.5deg);
+  }
+  50% {
+    transform: rotateZ(1.5deg);
+  }
+  100% {
+    transform: rotateZ(-1.5deg);
+  }
+}
+
+.intro-pack-float {
+  transform-style: preserve-3d;
+  animation: intro-pack-float 6.5s ease-in-out infinite;
+}
+
+.intro-pack-rotate {
+  animation: intro-pack-rotate 7.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-pack-float,
+  .intro-pack-rotate {
+    animation: none !important;
+  }
+}
+

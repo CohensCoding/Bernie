@@ -75,7 +75,7 @@ export default async function DashboardPage() {
             <Card className="border-border/60 lg:col-span-5">
               <CardHeader title="Spend by sport" subtitle="Share of cost basis" />
               <div className="mt-2">
-                <SpendSportDonut rows={data.spendBySport.slice(0, 8)} />
+                <SpendSportDonut rows={data.spendBySport.slice(0, 8)} drilldown={data.spendBySportPlayers} />
               </div>
             </Card>
 
