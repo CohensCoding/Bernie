@@ -14,9 +14,9 @@ export function AppShell({
       <header className="sticky top-0 z-10 border-b border-border bg-bg/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:py-4">
           <Link
-            href="/dashboard"
+            href="/"
             className="group flex items-center gap-3 self-start rounded-xl px-2 py-1 transition hover:bg-bg-elevated/50 focus:outline-none focus:ring-2 focus:ring-accent/25 sm:self-auto"
-            aria-label="Go to dashboard"
+            aria-label="Go to home"
           >
             <div className="relative">
               <BernieLogoMark className="h-9 w-9" />

@@ -5,13 +5,15 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/components/ui/cn';
 
 const TABS = [
+  { href: '/', label: 'Home' },
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/cards', label: 'Cards' },
   { href: '/portfolio', label: 'Portfolio' },
 ];
 
 function isActive(pathname: string, href: string) {
-  if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/';
+  if (href === '/') return pathname === '/';
+  if (href === '/dashboard') return pathname === '/dashboard';
   if (href === '/cards') return pathname === '/cards' || pathname.startsWith('/cards/');
   if (href === '/portfolio') return pathname === '/portfolio';
   return pathname === href || pathname.startsWith(`${href}/`);
