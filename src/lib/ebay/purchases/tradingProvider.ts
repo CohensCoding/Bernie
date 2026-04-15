@@ -1,5 +1,6 @@
 import { XMLParser } from 'fast-xml-parser';
 import { EBAY_GET_ORDERS_MAX_DAYS } from './constants';
+import { extractItemSpecificsFromItem } from './itemSpecifics';
 import type { EbayPurchase, EbayPurchaseProvider } from './types';
 
 function asArray<T>(v: T | T[] | undefined | null): T[] {
@@ -158,6 +159,7 @@ export function tradingGetOrdersProvider(): EbayPurchaseProvider {
           const tid = transactionId != null ? String(transactionId) : null;
           const iid = itemId != null ? String(itemId) : null;
           const externalId = [oid, tid].filter(Boolean).join(':') || String(title);
+          const itemSpecifics = extractItemSpecificsFromItem(tx);
           out.push({
             id: `ebay:${externalId}`,
             source: 'ebay',
@@ -167,6 +169,7 @@ export function tradingGetOrdersProvider(): EbayPurchaseProvider {
             currency: currency ? String(currency) : null,
             imageUrl: pictureUrl ? String(pictureUrl) : null,
             external: { orderId: oid, transactionId: tid, itemId: iid, listingUrl },
+            ...(Object.keys(itemSpecifics).length ? { itemSpecifics } : {}),
             raw: { order: o, tx: t },
           });
         }

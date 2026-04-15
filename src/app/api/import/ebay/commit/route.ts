@@ -19,6 +19,7 @@ const BodySchema = z
           listingUrl: z.string().nullable().optional(),
         })
         .optional(),
+      itemSpecifics: z.record(z.string(), z.string()).optional(),
       raw: z.unknown().optional(),
     }),
     card: z

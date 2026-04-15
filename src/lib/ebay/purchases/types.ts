@@ -12,6 +12,8 @@ export type EbayPurchase = {
     itemId?: string | null;
     listingUrl?: string | null;
   };
+  /** eBay `Item.ItemSpecifics` flattened to name → value when present on the order line item. */
+  itemSpecifics?: Record<string, string>;
   raw: unknown;
 };
 

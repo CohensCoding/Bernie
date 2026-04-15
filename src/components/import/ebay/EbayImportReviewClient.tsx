@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import type { EbayPurchase } from '@/lib/ebay/purchases/types';
 import { formatUsdFromCents } from '@/lib/money';
-import { lightParseTitle } from '@/components/import/ebay/lightParse';
+import { mergeTitleAndItemSpecifics, sanitizePlayerName } from '@/components/import/ebay/lightParse';
+import { extractItemSpecificsFromPurchaseRaw, hasUsableItemSpecifics } from '@/lib/ebay/purchases/itemSpecifics';
 
 function parseUsdToCents(raw: string): number {
   const n = Number(String(raw).replace(/[^0-9.-]/g, ''));
@@ -31,6 +32,8 @@ export function EbayImportReviewClient() {
   const [sport, setSport] = useState('');
   const [team, setTeam] = useState('');
   const [parallel, setParallel] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [rookie, setRookie] = useState(false);
   const [graded, setGraded] = useState(false);
   const [grader, setGrader] = useState('');
   const [grade, setGrade] = useState('');
@@ -54,12 +57,16 @@ export function EbayImportReviewClient() {
         const p = json.purchase!;
         setPurchase(p);
 
-        const parsed = lightParseTitle(p.title);
+        const parsed = mergeTitleAndItemSpecifics(p.title, p.itemSpecifics);
         setYear(parsed.year ? String(parsed.year) : '');
         setPlayer(parsed.player_hint ?? '');
         setBrand(parsed.brand ?? '');
         setSetName(parsed.set_hint ?? '');
+        setSport(parsed.sport_hint ?? '');
         setTeam(parsed.team_hint ?? '');
+        setParallel(parsed.parallel_hint ?? '');
+        setCardNumber(parsed.card_number_hint ?? '');
+        setRookie(parsed.rookie);
         setGraded(parsed.graded);
         setGrader(parsed.grading_company ?? '');
         setGrade(parsed.grade ?? '');
@@ -154,7 +161,11 @@ export function EbayImportReviewClient() {
           <span className="text-fg-muted">Team</span>
           <input value={team} onChange={(e) => setTeam(e.target.value)} className={inputClass} />
         </label>
-        <label className="text-sm sm:col-span-2">
+        <label className="text-sm">
+          <span className="text-fg-muted">Card #</span>
+          <input value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} className={inputClass} />
+        </label>
+        <label className="text-sm">
           <span className="text-fg-muted">Parallel</span>
           <input value={parallel} onChange={(e) => setParallel(e.target.value)} className={inputClass} />
         </label>
@@ -165,7 +176,11 @@ export function EbayImportReviewClient() {
           <input type="checkbox" checked={graded} onChange={(e) => setGraded(e.target.checked)} />
           Graded
         </label>
-        <div className="flex items-center gap-4 text-sm text-fg">
+        <div className="flex flex-wrap items-center gap-4 text-sm text-fg">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={rookie} onChange={(e) => setRookie(e.target.checked)} />
+            Rookie
+          </label>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
             Auto
@@ -228,13 +243,15 @@ export function EbayImportReviewClient() {
                   purchase,
                   card: {
                     title_raw: purchase.title,
-                    player_name: player.trim() || null,
+                    player_name: sanitizePlayerName(player.trim()) || null,
                     sport: sport.trim() || null,
                     team: team.trim() || null,
                     year: yearNum != null && Number.isFinite(yearNum) ? Math.trunc(yearNum) : null,
                     brand: brand.trim() || null,
                     set_name: setName.trim() || null,
+                    card_number: cardNumber.trim() || null,
                     parallel: parallel.trim() || null,
+                    rookie,
                     auto,
                     patch,
                     graded,
