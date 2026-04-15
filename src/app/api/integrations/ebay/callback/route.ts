@@ -32,6 +32,11 @@ export async function GET(req: Request) {
     return res;
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'OAuth failed';
+    const looksLikeMissingTable =
+      /Could not find the table/i.test(msg) || /schema cache/i.test(msg) || /integrations_ebay_connection/i.test(msg);
+    if (looksLikeMissingTable) {
+      return NextResponse.redirect(new URL('/import/ebay?error=EBAY_DB_NOT_MIGRATED', url.origin));
+    }
     return NextResponse.redirect(new URL(`/import/ebay?error=${encodeURIComponent(msg)}`, url.origin));
   }
 }

@@ -36,6 +36,21 @@ export function EbayImportClient() {
     setHidden(loadHidden());
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const sp = new URLSearchParams(window.location.search);
+    const err = sp.get('error');
+    if (err) {
+      if (err === 'EBAY_DB_NOT_MIGRATED') {
+        setError(
+          'eBay import is not set up in your database yet.\n\nRun the SQL in supabase/schema.sql (or your migration) to create integrations_ebay_connection and card_imports.',
+        );
+      } else {
+        setError(decodeURIComponent(err));
+      }
+    }
+  }, []);
+
   async function load() {
     setLoading(true);
     setError(null);
