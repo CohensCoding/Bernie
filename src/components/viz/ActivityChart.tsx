@@ -38,14 +38,14 @@ export function ActivityChart({ points }: { points: Point[] }) {
 
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <AreaChart data={points} margin={{ top: 10, right: 12, left: 0, bottom: 8 }}>
+      <AreaChart data={points} margin={{ top: 16, right: 16, left: 4, bottom: 12 }}>
         <defs>
           <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%" stopColor="hsl(156 72% 45%)" stopOpacity={0.45} />
             <stop offset="95%" stopColor="hsl(156 72% 45%)" stopOpacity={0.02} />
           </linearGradient>
         </defs>
-        <CartesianGrid stroke="hsl(217 19% 22%)" strokeDasharray="4 6" />
+        <CartesianGrid stroke="hsl(217 19% 22% / 0.35)" strokeDasharray="5 8" vertical={false} />
         <XAxis
           dataKey="month"
           tickFormatter={formatMonthLabel}

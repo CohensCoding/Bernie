@@ -1,9 +1,5 @@
 import Link from 'next/link';
-
-const NAV = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/portfolio', label: 'Portfolio' },
-];
+import { NavLinks } from '@/components/nav/NavLinks';
 
 export function AppShell({
   title = 'Bernie',
@@ -27,23 +23,7 @@ export function AppShell({
               <div className="text-xs text-fg-muted">Sports card portfolio</div>
             </div>
           </Link>
-          <nav className="flex items-center gap-2">
-            {NAV.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-xl px-3 py-2 text-sm text-fg-muted hover:text-fg hover:bg-bg-elevated/60"
-              >
-                {item.label}
-              </Link>
-            ))}
-            <Link
-              href="/ingest/new"
-              className="ml-2 rounded-xl bg-accent/20 px-3 py-2 text-sm text-fg ring-1 ring-accent/30 hover:bg-accent/25"
-            >
-              Add Card
-            </Link>
-          </nav>
+          <NavLinks />
         </div>
       </header>
 

@@ -41,8 +41,8 @@ export default async function IngestReviewPage({
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
         <header className="min-w-0 space-y-3">
           <nav className="text-xs text-fg-muted">
-            <Link href="/portfolio" className="transition hover:text-fg">
-              Portfolio
+            <Link href="/cards" className="transition hover:text-fg">
+              Cards
             </Link>
             <span className="mx-2 text-fg-muted/50">/</span>
             {detail ? (

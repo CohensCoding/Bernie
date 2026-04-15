@@ -46,8 +46,8 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-xs text-fg-muted">
-            <Link href="/portfolio" className="hover:text-fg">
-              Portfolio
+            <Link href="/cards" className="hover:text-fg">
+              Cards
             </Link>
             <span className="mx-2">/</span>
             <span className="text-fg">Card</span>
@@ -83,12 +83,12 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
 
         <div className="flex items-center gap-2">
           <Link
-            href="/portfolio"
+            href="/cards"
             className="rounded-xl border border-border bg-bg-muted px-3 py-2 text-sm text-fg hover:bg-bg-elevated/60"
           >
             Back
           </Link>
-          {card ? <CardActions cardId={card.id} /> : null}
+          {card ? <CardActions cardId={card.id} initialNotes={card.notes} /> : null}
         </div>
       </div>
 
@@ -101,6 +101,31 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
 
       {detail ? (
         <>
+          <section id="card-spec" className="scroll-mt-24 rounded-2xl border border-border/80 bg-bg-elevated/30 p-4 lg:p-5">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-fg-muted">Spec sheet</div>
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              <Field label="Player" value={detail.card.player_name ?? '—'} />
+              <Field label="Year" value={detail.card.year ?? '—'} />
+              <Field label="Sport" value={detail.card.sport ?? '—'} />
+              <Field label="Team" value={detail.card.team ?? '—'} />
+              <Field label="Brand" value={detail.card.brand ?? '—'} />
+              <Field label="Set" value={detail.card.set_name ?? '—'} />
+              <Field label="Subset" value={detail.card.subset ?? '—'} />
+              <Field label="Parallel" value={detail.card.parallel ?? '—'} />
+              <Field label="Card #" value={detail.card.card_number ?? '—'} />
+              <Field label="Serial" value={detail.card.serial_number ?? '—'} />
+              <Field label="Print run" value={detail.card.print_run ?? '—'} />
+              <Field
+                label="Grade"
+                value={
+                  detail.card.graded
+                    ? `${detail.card.grading_company ?? ''} ${detail.card.grade ?? ''}`.trim() || '—'
+                    : 'Raw'
+                }
+              />
+            </div>
+          </section>
+
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <UiCard className="lg:col-span-2">
               <CardHeader title="Purchase details" subtitle="Latest recorded purchase (cost basis)" />
@@ -134,32 +159,24 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
 
           <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <UiCard className="lg:col-span-2">
-              <CardHeader title="Card identity" subtitle="Structured identity fields" />
-              <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field label="Player" value={detail.card.player_name ?? '—'} />
-                <Field label="Year" value={detail.card.year ?? '—'} />
-                <Field label="Brand" value={detail.card.brand ?? '—'} />
-                <Field label="Set name" value={detail.card.set_name ?? '—'} />
-                <Field label="Subset" value={detail.card.subset ?? '—'} />
-                <Field label="Card number" value={detail.card.card_number ?? '—'} />
-                <Field label="Parallel" value={detail.card.parallel ?? '—'} />
-                <Field label="Serial number" value={detail.card.serial_number ?? '—'} />
-                <Field label="Print run" value={detail.card.print_run ?? '—'} />
-              </div>
-
-              {detail.card.graded ? (
-                <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Grading company" value={detail.card.grading_company ?? '—'} />
-                  <Field label="Grade" value={detail.card.grade ?? '—'} />
+              <CardHeader title="Notes & tags" subtitle="Collection notes and extracted type tags" />
+              {detail.card.card_type_tags.length > 0 ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {detail.card.card_type_tags.map((tag) => (
+                    <Pill key={tag}>{tag}</Pill>
+                  ))}
                 </div>
-              ) : null}
-
+              ) : (
+                <div className="mt-4 text-sm text-fg-muted">No type tags on this card.</div>
+              )}
               {detail.card.notes ? (
                 <div className="mt-6 border-t border-border pt-5">
                   <div className="text-[11px] uppercase tracking-wide text-fg-muted">Notes</div>
                   <div className="mt-2 whitespace-pre-wrap text-sm text-fg">{detail.card.notes}</div>
                 </div>
-              ) : null}
+              ) : (
+                <div className="mt-6 border-t border-border pt-5 text-sm text-fg-muted">No notes yet — use Notes in the toolbar.</div>
+              )}
             </UiCard>
 
             <UiCard>
@@ -243,7 +260,8 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
               </div>
             </UiCard>
 
-            <UiCard>
+            <div id="card-assets" className="scroll-mt-24">
+              <UiCard>
               <CardHeader title="Assets" subtitle="Linked screenshots and source files" />
               <div className="mt-4 space-y-3">
                 <div className="rounded-xl border border-border bg-bg-muted p-4">
@@ -314,7 +332,8 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
                   ))
                 )}
               </div>
-            </UiCard>
+              </UiCard>
+            </div>
           </section>
         </>
       ) : null}

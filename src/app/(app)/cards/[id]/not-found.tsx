@@ -10,13 +10,13 @@ export default function NotFound() {
       </div>
 
       <Card>
-        <CardHeader title="Try again" subtitle="Go back to your portfolio" />
+        <CardHeader title="Try again" subtitle="Go back to your cards" />
         <div className="mt-4">
           <Link
-            href="/portfolio"
+            href="/cards"
             className="inline-flex items-center rounded-xl border border-border bg-bg-muted px-3 py-2 text-sm text-fg hover:bg-bg-elevated/60"
           >
-            Back to Portfolio
+            Back to Cards
           </Link>
         </div>
       </Card>
