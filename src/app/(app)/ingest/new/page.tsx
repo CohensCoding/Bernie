@@ -1,5 +1,6 @@
 import { Card as UiCard, CardHeader } from '@/components/ui/Card';
 import { NewCardIngest } from '@/components/ingest/NewCardIngest';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,14 @@ export default function IngestNewPage() {
         <CardHeader
           title="Workflow"
           subtitle="Three short steps: start a draft, upload images, then review extracted fields."
+          right={
+            <Link
+              href="/import/ebay"
+              className="rounded-xl border border-border/80 bg-bg-muted/40 px-3 py-2 text-xs font-medium text-fg transition hover:bg-bg-muted/70"
+            >
+              Import from eBay
+            </Link>
+          }
         />
         <div className="mt-8">
           <NewCardIngest />

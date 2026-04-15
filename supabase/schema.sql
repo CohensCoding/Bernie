@@ -148,6 +148,61 @@ create table if not exists public.card_assets (
   )
 );
 
+-- Integrations: eBay connection (single-user, server-side tokens)
+create table if not exists public.integrations_ebay_connection (
+  id uuid primary key default gen_random_uuid(),
+  -- access token can be null if we only retain refresh_token (but MVP stores both)
+  access_token text null,
+  refresh_token text not null,
+  scopes text[] not null default '{}'::text[],
+  expires_at timestamptz null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'integrations_ebay_connection_set_updated_at') then
+    create trigger integrations_ebay_connection_set_updated_at
+    before update on public.integrations_ebay_connection
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
+-- External imports traceability + dedupe
+create table if not exists public.card_imports (
+  id uuid primary key default gen_random_uuid(),
+  card_id uuid not null references public.cards(id) on delete cascade,
+  transaction_id uuid null references public.card_transactions(id) on delete set null,
+
+  source text not null, -- e.g. 'ebay'
+  external_id text not null, -- e.g. 'OrderID:TransactionID' or similar
+  external_url text null,
+  external_title text null,
+  image_url text null,
+
+  purchased_at date null,
+  total_cost_cents int not null default 0,
+  currency text null,
+
+  raw jsonb null,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'card_imports_set_updated_at') then
+    create trigger card_imports_set_updated_at
+    before update on public.card_imports
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
+create unique index if not exists card_imports_source_external_id_uq on public.card_imports (source, external_id);
+create index if not exists card_imports_card_id_idx on public.card_imports (card_id);
+
 do $$
 begin
   if not exists (select 1 from pg_trigger where tgname = 'card_assets_set_updated_at') then
