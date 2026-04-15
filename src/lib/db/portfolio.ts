@@ -4,57 +4,38 @@ import { getSupabaseServerClient } from '@/lib/supabase/server';
 export type PortfolioRow = {
   card: Card;
   latestTransaction: CardTransaction | null;
-  /** Latest screenshot signed URL for table thumbnail (short TTL). */
+  /**
+   * Optional thumbnail URL for list/table rendering.
+   * Intentionally null today: we only have screenshot assets which look random as "thumbnails".
+   * When we add a dedicated "cover/front" asset type, we can populate this.
+   */
   thumb_signed_url: string | null;
 };
 
 export async function getPortfolioRows(): Promise<PortfolioRow[]> {
   const supabase = getSupabaseServerClient();
 
-  const [{ data: cards, error: cardsError }, { data: txs, error: txError }, { data: assets, error: assetError }] =
-    await Promise.all([
-      supabase.from('cards').select('*').order('created_at', { ascending: false }),
-      supabase
-        .from('card_transactions')
-        .select('*')
-        .order('purchase_date', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('card_assets')
-        .select('card_id,bucket,path,created_at')
-        .eq('asset_type', 'screenshot')
-        .not('card_id', 'is', null)
-        .order('created_at', { ascending: false }),
-    ]);
+  const [{ data: cards, error: cardsError }, { data: txs, error: txError }] = await Promise.all([
+    supabase.from('cards').select('*').order('created_at', { ascending: false }),
+    supabase
+      .from('card_transactions')
+      .select('*')
+      .order('purchase_date', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false }),
+  ]);
 
   if (cardsError) throw new Error(cardsError.message);
   if (txError) throw new Error(txError.message);
-  if (assetError) throw new Error(assetError.message);
 
   const latestByCard = new Map<string, CardTransaction>();
   for (const tx of (txs ?? []) as CardTransaction[]) {
     if (!latestByCard.has(tx.card_id)) latestByCard.set(tx.card_id, tx);
   }
 
-  const firstAssetByCard = new Map<string, { bucket: string; path: string }>();
-  for (const a of (assets ?? []) as Array<{ card_id: string | null; bucket: string; path: string }>) {
-    if (!a.card_id) continue;
-    if (!firstAssetByCard.has(a.card_id)) {
-      firstAssetByCard.set(a.card_id, { bucket: a.bucket, path: a.path });
-    }
-  }
-
-  const thumbUrls = new Map<string, string | null>();
-  for (const [cardId, loc] of firstAssetByCard.entries()) {
-    const { data: signed, error: signErr } = await supabase.storage.from(loc.bucket).createSignedUrl(loc.path, 3600);
-    if (!signErr) thumbUrls.set(cardId, signed?.signedUrl ?? null);
-    else thumbUrls.set(cardId, null);
-  }
-
   return ((cards ?? []) as Card[]).map((card) => ({
     card,
     latestTransaction: latestByCard.get(card.id) ?? null,
-    thumb_signed_url: thumbUrls.get(card.id) ?? null,
+    thumb_signed_url: null,
   }));
 }
 

@@ -6,6 +6,16 @@ import { useRouter } from 'next/navigation';
 import type { PortfolioRow } from '@/lib/db/portfolio';
 import { formatUsdFromCents } from '@/lib/money';
 
+function initialsFromCard(c: PortfolioRow['card']) {
+  const raw = (c.player_name ?? c.title_raw ?? '').trim();
+  if (!raw) return 'BC';
+  const parts = raw.split(/\s+/).filter(Boolean);
+  const a = (parts[0]?.[0] ?? '').toUpperCase();
+  const b = (parts[parts.length - 1]?.[0] ?? '').toUpperCase();
+  const out = `${a}${b}`.trim();
+  return out.length ? out.slice(0, 2) : 'BC';
+}
+
 type SortKey =
   | 'createdAt'
   | 'player'
@@ -828,12 +838,9 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                         aria-label={isSelected ? 'Deselect' : 'Select'}
                       />
                     </label>
-                    {r.thumb_signed_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={r.thumb_signed_url} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center text-xs text-fg-muted">No image</div>
-                    )}
+                    <div className="flex h-full w-full items-center justify-center bg-bg-muted/30 text-xs font-semibold text-fg-muted">
+                      {initialsFromCard(c)}
+                    </div>
                   </div>
                   <div className="space-y-1 p-3">
                     <div className="truncate text-sm font-medium text-fg">{c.player_name ?? 'Unknown'}</div>
@@ -884,19 +891,12 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                         />
                       </div>
                       <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                        {r.thumb_signed_url ? (
-                          <Link
-                            href={`/cards/${c.id}`}
-                            className="block h-12 w-12 overflow-hidden rounded-xl border border-border/60 bg-bg-muted"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={r.thumb_signed_url} alt="" className="h-12 w-12 object-cover" />
-                          </Link>
-                        ) : (
-                          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-dashed border-border/50 text-[10px] text-fg-muted">
-                            —
-                          </div>
-                        )}
+                        <Link
+                          href={`/cards/${c.id}`}
+                          className="flex h-12 w-12 items-center justify-center rounded-xl border border-border/60 bg-bg-muted text-xs font-semibold text-fg-muted"
+                        >
+                          {initialsFromCard(c)}
+                        </Link>
                       </div>
 
                       <div className="min-w-0 flex-1">
@@ -1105,19 +1105,12 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                     </td>
                     {visibleCols.thumb ? (
                       <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
-                        {r.thumb_signed_url ? (
-                          <Link
-                            href={`/cards/${c.id}`}
-                            className="block h-10 w-10 overflow-hidden rounded-lg border border-border/60 bg-bg-muted"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={r.thumb_signed_url} alt="" className="h-10 w-10 object-cover" />
-                          </Link>
-                        ) : (
-                          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-dashed border-border/50 text-[10px] text-fg-muted">
-                            —
-                          </div>
-                        )}
+                        <Link
+                          href={`/cards/${c.id}`}
+                          className="flex h-10 w-10 items-center justify-center rounded-lg border border-border/60 bg-bg-muted text-xs font-semibold text-fg-muted"
+                        >
+                          {initialsFromCard(c)}
+                        </Link>
                       </td>
                     ) : null}
                     {visibleCols.player ? (

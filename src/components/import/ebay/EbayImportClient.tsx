@@ -41,10 +41,22 @@ export function EbayImportClient() {
     setError(null);
     try {
       const res = await fetch('/api/import/ebay/purchases?days=90', { cache: 'no-store' });
-      const json = (await res.json()) as { ok?: boolean; error?: string; purchases?: EbayPurchase[] };
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        code?: string;
+        hint?: string;
+        purchases?: EbayPurchase[];
+      };
       if (res.status === 401) {
         setConnected(false);
         setItems([]);
+        return;
+      }
+      if (res.status === 503 && json?.code === 'EBAY_DB_NOT_MIGRATED') {
+        setConnected(false);
+        setItems([]);
+        setError(`${json.error}${json.hint ? `\n\n${json.hint}` : ''}`);
         return;
       }
       if (!res.ok) throw new Error(json?.error ?? 'Unable to load purchases.');
@@ -143,7 +155,7 @@ export function EbayImportClient() {
       </div>
 
       {error ? (
-        <div className="rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-4 py-3 text-sm text-red-200">
+        <div className="rounded-2xl border border-red-500/25 bg-red-500/[0.06] px-4 py-3 text-sm text-red-200 whitespace-pre-line">
           {error}
         </div>
       ) : null}

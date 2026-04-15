@@ -24,6 +24,18 @@ export async function GET(req: Request) {
     return NextResponse.json({ ok: true, purchases });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
+    const looksLikeMissingTable =
+      /Could not find the table/i.test(msg) || /schema cache/i.test(msg) || /integrations_ebay_connection/i.test(msg);
+    if (looksLikeMissingTable) {
+      return NextResponse.json(
+        {
+          error: 'eBay import is not set up in your database yet.',
+          code: 'EBAY_DB_NOT_MIGRATED',
+          hint: 'Run the SQL in supabase/schema.sql (or your migration) to create integrations_ebay_connection and card_imports.',
+        },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
