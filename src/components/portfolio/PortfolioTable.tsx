@@ -75,6 +75,23 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   notes: 'Notes',
 };
 
+const MOBILE_PRIMARY: Record<ColumnKey, boolean> = {
+  thumb: true,
+  player: true,
+  year: true,
+  brandSet: true,
+  parallel: false,
+  grade: true,
+  grader: false,
+  platform: false,
+  purchasePrice: false,
+  totalCost: true,
+  purchaseDate: true,
+  sport: false,
+  team: false,
+  notes: false,
+};
+
 const VIEW_STORAGE_KEY = 'bernie.cards.viewMode.v1';
 
 type ViewMode = 'table' | 'grid';
@@ -536,13 +553,19 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
   }
 
   async function deleteCards(cardIds: string[]) {
+    const cleaned = cardIds.map((id) => String(id)).filter((id) => id && id !== 'null' && id !== 'undefined');
+    if (cleaned.length === 0) throw new Error('No card ids to delete.');
     const res = await fetch('/api/cards/delete', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ card_ids: cardIds }),
+      body: JSON.stringify({ card_ids: cleaned }),
     });
-    const json = (await res.json()) as { error?: string };
-    if (!res.ok) throw new Error(json?.error ?? 'Delete failed.');
+    const json = (await res.json()) as { error?: string; issues?: Array<{ path: unknown; message: string }> };
+    if (!res.ok) {
+      const issueHint =
+        json?.issues && json.issues.length ? ` (${json.issues.map((i) => i.message).join(', ')})` : '';
+      throw new Error((json?.error ?? 'Delete failed.') + issueHint);
+    }
   }
 
   function toggleSort(next: SortKey) {
@@ -600,7 +623,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search cards…"
-          className="min-h-[40px] min-w-0 flex-1 rounded-xl border border-border/80 bg-bg-muted/50 px-3 py-2 text-sm text-fg placeholder:text-fg-muted/80 outline-none ring-accent/30 transition focus:ring-2"
+          className="h-11 min-w-0 flex-1 rounded-2xl border border-border/80 bg-bg-muted/50 px-4 text-sm text-fg placeholder:text-fg-muted/80 outline-none ring-accent/30 transition focus:ring-2"
         />
         <div className="flex flex-wrap items-center gap-2">
           <select
@@ -610,7 +633,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
               setSortKey(k);
               setSortDir(d);
             }}
-            className="h-10 min-w-[10rem] rounded-xl border border-border/80 bg-bg-muted/50 px-3 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/30"
+            className="h-11 min-w-[10rem] rounded-2xl border border-border/80 bg-bg-muted/50 px-4 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/30"
           >
             <option value="createdAt:desc">Newest added</option>
             <option value="createdAt:asc">Oldest added</option>
@@ -631,7 +654,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
           <button
             type="button"
             onClick={openFilters}
-            className="h-10 rounded-xl border border-border/80 bg-bg-muted/50 px-3 text-sm text-fg transition hover:bg-bg-muted/80"
+            className="h-11 rounded-2xl border border-border/80 bg-bg-muted/50 px-4 text-sm font-medium text-fg transition hover:bg-bg-muted/80"
           >
             Filters{filterCount > 0 ? ` (${filterCount})` : ''}
           </button>
@@ -643,7 +666,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                 e.stopPropagation();
                 setColumnsOpen((o) => !o);
               }}
-              className="h-10 rounded-xl border border-border/80 bg-bg-muted/50 px-3 text-sm text-fg transition hover:bg-bg-muted/80"
+              className="h-11 rounded-2xl border border-border/80 bg-bg-muted/50 px-4 text-sm font-medium text-fg transition hover:bg-bg-muted/80"
             >
               Columns
             </button>
@@ -670,11 +693,11 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
             ) : null}
           </div>
 
-          <div className="flex h-10 rounded-xl border border-border/80 bg-bg-muted/40 p-0.5">
+          <div className="flex h-11 rounded-2xl border border-border/80 bg-bg-muted/40 p-0.5">
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`rounded-lg px-3 text-xs font-medium transition sm:text-sm ${
+              className={`rounded-xl px-3 text-xs font-semibold transition sm:text-sm ${
                 viewMode === 'table' ? 'bg-bg-elevated text-fg shadow-sm' : 'text-fg-muted hover:text-fg'
               }`}
             >
@@ -683,7 +706,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
             <button
               type="button"
               onClick={() => setViewMode('grid')}
-              className={`rounded-lg px-3 text-xs font-medium transition sm:text-sm ${
+              className={`rounded-xl px-3 text-xs font-semibold transition sm:text-sm ${
                 viewMode === 'grid' ? 'bg-bg-elevated text-fg shadow-sm' : 'text-fg-muted hover:text-fg'
               }`}
             >
@@ -717,19 +740,20 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
       ) : null}
 
       {selectedIds.length > 0 ? (
-        <div className="flex flex-col gap-2 rounded-xl border border-accent/20 bg-accent/[0.06] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-fg">
-            <span className="font-medium">{selectedIds.length}</span>
-            <span className="text-fg-muted"> selected</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="rounded-2xl border border-accent/25 bg-accent/[0.06] px-3 py-3 sm:flex sm:items-center sm:justify-between">
+          <div className="flex items-center justify-between gap-3 sm:justify-start">
+            <div className="text-sm font-medium text-fg">
+              {selectedIds.length} <span className="text-fg-muted">selected</span>
+            </div>
             <button
               type="button"
               onClick={() => setSelected({})}
-              className="rounded-lg px-2 py-1.5 text-sm text-fg-muted transition hover:bg-bg-muted/50 hover:text-fg"
+              className="rounded-xl border border-border/60 bg-bg-muted/35 px-3 py-2 text-sm text-fg transition hover:bg-bg-muted/60"
             >
               Clear
             </button>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:mt-0 sm:flex sm:items-center sm:gap-2">
             <button
               type="button"
               onClick={() => {
@@ -740,7 +764,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                 setBulkError(null);
                 setBulkEditOpen(true);
               }}
-              className="rounded-lg border border-border/60 bg-bg-muted/40 px-2.5 py-1.5 text-sm text-fg transition hover:bg-bg-muted/70"
+              className="rounded-xl border border-border/60 bg-bg-muted/40 px-3 py-2 text-sm font-medium text-fg transition hover:bg-bg-muted/70"
             >
               Bulk edit
             </button>
@@ -750,7 +774,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                 setBulkError(null);
                 setConfirmBulkDelete(true);
               }}
-              className="rounded-lg border border-red-500/20 bg-red-500/[0.06] px-2.5 py-1.5 text-sm text-red-200 transition hover:bg-red-500/[0.1]"
+              className="rounded-xl border border-red-500/25 bg-red-500/[0.07] px-3 py-2 text-sm font-semibold text-red-100 transition hover:bg-red-500/[0.11]"
             >
               Delete
             </button>
@@ -820,8 +844,8 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
           </div>
         )
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border/80">
-          <table className="min-w-[720px] w-full border-separate border-spacing-0">
+        <div className="max-w-full overflow-x-auto overscroll-x-contain rounded-xl border border-border/80">
+          <table className="w-full table-fixed border-separate border-spacing-0">
             <thead className="bg-bg-muted/50">
               <tr className="text-left text-[10px] uppercase tracking-wide text-fg-muted/90">
                 <th className="px-3 py-2.5 w-10">
@@ -843,33 +867,50 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                   </th>
                 ) : null}
                 {visibleCols.year ? (
-                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('year')}>
+                  <th
+                    className={`px-3 py-2.5 cursor-pointer ${MOBILE_PRIMARY.year ? '' : 'hidden sm:table-cell'}`}
+                    onClick={() => toggleSort('year')}
+                  >
                     Year{sortIndicator('year')}
                   </th>
                 ) : null}
                 {visibleCols.brandSet ? (
-                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('brandSet')}>
+                  <th
+                    className={`px-3 py-2.5 cursor-pointer ${MOBILE_PRIMARY.brandSet ? '' : 'hidden sm:table-cell'}`}
+                    onClick={() => toggleSort('brandSet')}
+                  >
                     Set{sortIndicator('brandSet')}
                   </th>
                 ) : null}
-                {visibleCols.parallel ? <th className="px-3 py-2.5">Parallel</th> : null}
+                {visibleCols.parallel ? (
+                  <th className={`px-3 py-2.5 ${MOBILE_PRIMARY.parallel ? '' : 'hidden sm:table-cell'}`}>Parallel</th>
+                ) : null}
                 {visibleCols.grade ? (
                   <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('grade')}>
                     Grade{sortIndicator('grade')}
                   </th>
                 ) : null}
                 {visibleCols.grader ? (
-                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('grader')}>
+                  <th
+                    className={`px-3 py-2.5 cursor-pointer ${MOBILE_PRIMARY.grader ? '' : 'hidden sm:table-cell'}`}
+                    onClick={() => toggleSort('grader')}
+                  >
                     Grader{sortIndicator('grader')}
                   </th>
                 ) : null}
                 {visibleCols.platform ? (
-                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('platform')}>
+                  <th
+                    className={`px-3 py-2.5 cursor-pointer ${MOBILE_PRIMARY.platform ? '' : 'hidden sm:table-cell'}`}
+                    onClick={() => toggleSort('platform')}
+                  >
                     Platform{sortIndicator('platform')}
                   </th>
                 ) : null}
                 {visibleCols.purchasePrice ? (
-                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('purchasePrice')}>
+                  <th
+                    className={`px-3 py-2.5 cursor-pointer ${MOBILE_PRIMARY.purchasePrice ? '' : 'hidden sm:table-cell'}`}
+                    onClick={() => toggleSort('purchasePrice')}
+                  >
                     Purchase{sortIndicator('purchasePrice')}
                   </th>
                 ) : null}
@@ -884,16 +925,24 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                   </th>
                 ) : null}
                 {visibleCols.sport ? (
-                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('sport')}>
+                  <th
+                    className={`px-3 py-2.5 cursor-pointer ${MOBILE_PRIMARY.sport ? '' : 'hidden sm:table-cell'}`}
+                    onClick={() => toggleSort('sport')}
+                  >
                     Sport{sortIndicator('sport')}
                   </th>
                 ) : null}
                 {visibleCols.team ? (
-                  <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('team')}>
+                  <th
+                    className={`px-3 py-2.5 cursor-pointer ${MOBILE_PRIMARY.team ? '' : 'hidden sm:table-cell'}`}
+                    onClick={() => toggleSort('team')}
+                  >
                     Team{sortIndicator('team')}
                   </th>
                 ) : null}
-                {visibleCols.notes ? <th className="px-3 py-2.5">Notes</th> : null}
+                {visibleCols.notes ? (
+                  <th className={`px-3 py-2.5 ${MOBILE_PRIMARY.notes ? '' : 'hidden sm:table-cell'}`}>Notes</th>
+                ) : null}
                 <th className="px-3 py-2.5 w-10" onClick={(e) => e.stopPropagation()} />
               </tr>
             </thead>
@@ -949,20 +998,44 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                         ) : null}
                       </td>
                     ) : null}
-                    {visibleCols.year ? <td className="px-3 py-2.5 text-sm text-fg">{c.year ?? '—'}</td> : null}
+                {visibleCols.year ? (
+                  <td className={`px-3 py-2.5 text-sm text-fg ${MOBILE_PRIMARY.year ? '' : 'hidden sm:table-cell'}`}>
+                    {c.year ?? '—'}
+                  </td>
+                ) : null}
                     {visibleCols.brandSet ? (
-                      <td className="max-w-[200px] truncate px-3 py-2.5 text-sm text-fg">{setDisplayLabel(c)}</td>
+                  <td
+                    className={`truncate px-3 py-2.5 text-sm text-fg ${MOBILE_PRIMARY.brandSet ? '' : 'hidden sm:table-cell'}`}
+                  >
+                    {setDisplayLabel(c)}
+                  </td>
                     ) : null}
                     {visibleCols.parallel ? (
-                      <td className="max-w-[120px] truncate px-3 py-2.5 text-sm text-fg">{c.parallel ?? '—'}</td>
+                  <td
+                    className={`max-w-[120px] truncate px-3 py-2.5 text-sm text-fg ${MOBILE_PRIMARY.parallel ? '' : 'hidden sm:table-cell'}`}
+                  >
+                    {c.parallel ?? '—'}
+                  </td>
                     ) : null}
                     {visibleCols.grade ? <td className="px-3 py-2.5 text-sm text-fg">{gradeLabel}</td> : null}
                     {visibleCols.grader ? (
-                      <td className="px-3 py-2.5 text-sm text-fg">{c.grading_company ?? '—'}</td>
+                  <td
+                    className={`px-3 py-2.5 text-sm text-fg ${MOBILE_PRIMARY.grader ? '' : 'hidden sm:table-cell'}`}
+                  >
+                    {c.grading_company ?? '—'}
+                  </td>
                     ) : null}
-                    {visibleCols.platform ? <td className="px-3 py-2.5 text-sm text-fg">{t?.platform ?? '—'}</td> : null}
+                {visibleCols.platform ? (
+                  <td
+                    className={`px-3 py-2.5 text-sm text-fg ${MOBILE_PRIMARY.platform ? '' : 'hidden sm:table-cell'}`}
+                  >
+                    {t?.platform ?? '—'}
+                  </td>
+                ) : null}
                     {visibleCols.purchasePrice ? (
-                      <td className="px-3 py-2.5 text-sm tabular-nums text-fg">
+                  <td
+                    className={`px-3 py-2.5 text-sm tabular-nums text-fg ${MOBILE_PRIMARY.purchasePrice ? '' : 'hidden sm:table-cell'}`}
+                  >
                         {t ? formatUsdFromCents(t.purchase_price_cents) : '—'}
                       </td>
                     ) : null}
@@ -974,10 +1047,21 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                     {visibleCols.purchaseDate ? (
                       <td className="px-3 py-2.5 text-sm tabular-nums text-fg">{t?.purchase_date ?? '—'}</td>
                     ) : null}
-                    {visibleCols.sport ? <td className="px-3 py-2.5 text-sm text-fg">{c.sport ?? '—'}</td> : null}
-                    {visibleCols.team ? <td className="px-3 py-2.5 text-sm text-fg">{c.team ?? '—'}</td> : null}
+                {visibleCols.sport ? (
+                  <td className={`px-3 py-2.5 text-sm text-fg ${MOBILE_PRIMARY.sport ? '' : 'hidden sm:table-cell'}`}>
+                    {c.sport ?? '—'}
+                  </td>
+                ) : null}
+                {visibleCols.team ? (
+                  <td className={`px-3 py-2.5 text-sm text-fg ${MOBILE_PRIMARY.team ? '' : 'hidden sm:table-cell'}`}>
+                    {c.team ?? '—'}
+                  </td>
+                ) : null}
                     {visibleCols.notes ? (
-                      <td className="max-w-[160px] truncate px-3 py-2.5 text-sm text-fg-muted" title={c.notes ?? ''}>
+                  <td
+                    className={`max-w-[160px] truncate px-3 py-2.5 text-sm text-fg-muted ${MOBILE_PRIMARY.notes ? '' : 'hidden sm:table-cell'}`}
+                    title={c.notes ?? ''}
+                  >
                         {c.notes?.trim() ? c.notes : '—'}
                       </td>
                     ) : null}
@@ -1255,21 +1339,23 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
       ) : null}
 
       {confirmBulkDelete ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-bg-elevated/95 p-5 shadow-2xl backdrop-blur">
-            <div className="text-sm font-semibold text-fg">Delete {selectedIds.length} card(s)?</div>
-            <div className="mt-2 text-sm text-fg-muted">
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-bg-elevated/95 p-5 shadow-2xl backdrop-blur sm:max-w-md">
+            <div className="text-base font-semibold text-fg">Delete {selectedIds.length} card(s)?</div>
+            <div className="mt-2 text-sm leading-relaxed text-fg-muted">
               This removes selected cards and their linked screenshots and transactions. This can’t be undone.
             </div>
             {bulkError ? (
-              <div className="mt-4 rounded-xl border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-sm text-red-200">{bulkError}</div>
+              <div className="mt-4 rounded-xl border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-sm text-red-200">
+                {bulkError}
+              </div>
             ) : null}
-            <div className="mt-5 flex items-center justify-end gap-2">
+            <div className="mt-5 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 disabled={bulkBusy}
                 onClick={() => setConfirmBulkDelete(false)}
-                className="rounded-xl border border-border/80 bg-bg-muted/40 px-4 py-2 text-sm text-fg transition hover:bg-bg-muted/70 disabled:opacity-50"
+                className="rounded-xl border border-border/80 bg-bg-muted/40 px-4 py-2.5 text-sm font-medium text-fg transition hover:bg-bg-muted/70 disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1290,7 +1376,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                     setBulkBusy(false);
                   }
                 }}
-                className="rounded-xl bg-red-500/90 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
+                className="rounded-xl bg-red-500/90 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
               >
                 {bulkBusy ? 'Deleting…' : 'Delete'}
               </button>
@@ -1300,19 +1386,21 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
       ) : null}
 
       {confirmSingleDelete ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-bg-elevated/95 p-5 shadow-2xl backdrop-blur">
-            <div className="text-sm font-semibold text-fg">Delete this card?</div>
-            <div className="mt-2 text-sm text-fg-muted">This can’t be undone.</div>
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-bg-elevated/95 p-5 shadow-2xl backdrop-blur sm:max-w-md">
+            <div className="text-base font-semibold text-fg">Delete this card?</div>
+            <div className="mt-2 text-sm leading-relaxed text-fg-muted">This can’t be undone.</div>
             {bulkError ? (
-              <div className="mt-4 rounded-xl border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-sm text-red-200">{bulkError}</div>
+              <div className="mt-4 rounded-xl border border-red-500/25 bg-red-500/[0.06] px-3 py-2 text-sm text-red-200">
+                {bulkError}
+              </div>
             ) : null}
-            <div className="mt-5 flex items-center justify-end gap-2">
+            <div className="mt-5 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 disabled={bulkBusy}
                 onClick={() => setConfirmSingleDelete(null)}
-                className="rounded-xl border border-border/80 bg-bg-muted/40 px-4 py-2 text-sm text-fg transition hover:bg-bg-muted/70 disabled:opacity-50"
+                className="rounded-xl border border-border/80 bg-bg-muted/40 px-4 py-2.5 text-sm font-medium text-fg transition hover:bg-bg-muted/70 disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1337,7 +1425,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                     setBulkBusy(false);
                   }
                 }}
-                className="rounded-xl bg-red-500/90 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
+                className="rounded-xl bg-red-500/90 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
               >
                 {bulkBusy ? 'Deleting…' : 'Delete'}
               </button>

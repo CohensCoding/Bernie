@@ -42,9 +42,9 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
   const latestTx = detail?.transactions?.[0] ?? null;
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
+    <div className="space-y-7">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
           <div className="text-xs text-fg-muted">
             <Link href="/cards" className="hover:text-fg">
               Cards
@@ -52,8 +52,8 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
             <span className="mx-2">/</span>
             <span className="text-fg">Card</span>
           </div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight text-fg">{card?.player_name ?? 'Card'}</div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-fg-muted">
+          <div className="mt-2 truncate text-2xl font-semibold tracking-tight text-fg">{card?.player_name ?? 'Card'}</div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-fg-muted">
             <span>{card?.year ?? '—'}</span>
             <span className="text-fg-muted/40">·</span>
             <span>{card?.brand ?? '—'}</span>
@@ -66,7 +66,7 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
               </>
             ) : null}
           </div>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {card?.rookie ? <Pill>Rookie</Pill> : null}
             {card?.auto ? <Pill>Auto</Pill> : null}
             {card?.patch ? <Pill>Patch</Pill> : null}
@@ -81,10 +81,10 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
           <Link
             href="/cards"
-            className="rounded-xl border border-border bg-bg-muted px-3 py-2 text-sm text-fg hover:bg-bg-elevated/60"
+            className="rounded-xl border border-border bg-bg-muted px-3 py-2 text-center text-sm text-fg hover:bg-bg-elevated/60"
           >
             Back
           </Link>

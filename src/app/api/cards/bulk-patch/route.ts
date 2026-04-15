@@ -2,8 +2,12 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 
+const LooseUuid = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'Invalid id format.');
+
 const BodySchema = z.object({
-  card_ids: z.array(z.string().uuid()).min(1),
+  card_ids: z.array(LooseUuid).min(1),
   patch: z
     .object({
       sport: z.string().nullable().optional(),
@@ -17,7 +21,10 @@ export async function POST(req: Request) {
     const json = (await req.json()) as unknown;
     const parsed = BodySchema.safeParse(json);
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Invalid request body.', issues: parsed.error.issues.map((i) => ({ path: i.path, message: i.message })) },
+        { status: 400 },
+      );
     }
 
     const { card_ids, patch } = parsed.data;

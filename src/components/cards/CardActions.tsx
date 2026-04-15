@@ -25,8 +25,11 @@ export function CardActions({ cardId, initialNotes }: { cardId: string; initialN
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ card_ids: [cardId] }),
       });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(json?.error ?? 'Delete failed.');
+      const json = (await res.json()) as { error?: string; issues?: Array<{ message: string }> };
+      if (!res.ok) {
+        const issueHint = json?.issues?.length ? ` (${json.issues.map((i) => i.message).join(', ')})` : '';
+        throw new Error((json?.error ?? 'Delete failed.') + issueHint);
+      }
       router.push('/cards');
       router.refresh();
     } catch (e) {
@@ -92,10 +95,10 @@ export function CardActions({ cardId, initialNotes }: { cardId: string; initialN
       </button>
 
       {noteOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-bg-elevated/95 p-5 shadow-2xl backdrop-blur">
-            <div className="text-sm font-semibold tracking-tight text-fg">Collection notes</div>
-            <div className="mt-2 text-sm text-fg-muted">Saved on the card record.</div>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-bg-elevated/95 p-5 shadow-2xl backdrop-blur sm:max-w-lg">
+            <div className="text-base font-semibold tracking-tight text-fg">Notes</div>
+            <div className="mt-2 text-sm leading-relaxed text-fg-muted">Saved on the card record.</div>
             <textarea
               value={noteDraft}
               onChange={(e) => setNoteDraft(e.target.value)}
@@ -107,12 +110,12 @@ export function CardActions({ cardId, initialNotes }: { cardId: string; initialN
                 {error}
               </div>
             ) : null}
-            <div className="mt-5 flex items-center justify-end gap-2">
+            <div className="mt-5 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => setNoteOpen(false)}
-                className="rounded-xl border border-border/80 bg-bg-muted/40 px-4 py-2 text-sm font-medium text-fg transition hover:bg-bg-muted/70 disabled:opacity-50"
+                className="rounded-xl border border-border/80 bg-bg-muted/40 px-4 py-2.5 text-sm font-medium text-fg transition hover:bg-bg-muted/70 disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -120,7 +123,7 @@ export function CardActions({ cardId, initialNotes }: { cardId: string; initialN
                 type="button"
                 disabled={busy}
                 onClick={onSaveNotes}
-                className="rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-fg transition hover:opacity-95 disabled:opacity-50"
+                className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-fg transition hover:opacity-95 disabled:opacity-50"
               >
                 {busy ? 'Saving…' : 'Save'}
               </button>
@@ -130,9 +133,9 @@ export function CardActions({ cardId, initialNotes }: { cardId: string; initialN
       ) : null}
 
       {confirmOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-bg-elevated/95 p-5 shadow-2xl backdrop-blur">
-            <div className="text-sm font-semibold tracking-tight text-fg">Delete this card?</div>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-3 sm:items-center sm:p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-bg-elevated/95 p-5 shadow-2xl backdrop-blur sm:max-w-md">
+            <div className="text-base font-semibold tracking-tight text-fg">Delete this card?</div>
             <div className="mt-2 text-sm leading-relaxed text-fg-muted">
               This removes the card from your portfolio and deletes linked screenshots and transactions. This can’t be
               undone.
@@ -144,12 +147,12 @@ export function CardActions({ cardId, initialNotes }: { cardId: string; initialN
               </div>
             ) : null}
 
-            <div className="mt-5 flex items-center justify-end gap-2">
+            <div className="mt-5 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => setConfirmOpen(false)}
-                className="rounded-xl border border-border/80 bg-bg-muted/40 px-4 py-2 text-sm font-medium text-fg transition hover:bg-bg-muted/70 disabled:opacity-50"
+                className="rounded-xl border border-border/80 bg-bg-muted/40 px-4 py-2.5 text-sm font-medium text-fg transition hover:bg-bg-muted/70 disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -157,7 +160,7 @@ export function CardActions({ cardId, initialNotes }: { cardId: string; initialN
                 type="button"
                 disabled={busy}
                 onClick={onDelete}
-                className="rounded-xl bg-red-500/90 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
+                className="rounded-xl bg-red-500/90 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
               >
                 {busy ? 'Deleting…' : 'Delete card'}
               </button>
