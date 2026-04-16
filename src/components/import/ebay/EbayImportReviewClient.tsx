@@ -57,7 +57,10 @@ export function EbayImportReviewClient() {
         const p = json.purchase!;
         setPurchase(p);
 
-        const parsed = mergeTitleAndItemSpecifics(p.title, p.itemSpecifics);
+        const specifics = hasUsableItemSpecifics(p.itemSpecifics)
+          ? p.itemSpecifics!
+          : extractItemSpecificsFromPurchaseRaw(p.raw);
+        const parsed = mergeTitleAndItemSpecifics(p.title, specifics);
         setYear(parsed.year ? String(parsed.year) : '');
         setPlayer(parsed.player_hint ?? '');
         setBrand(parsed.brand ?? '');

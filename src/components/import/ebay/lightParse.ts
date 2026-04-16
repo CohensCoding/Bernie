@@ -6,6 +6,7 @@ import {
   normalizeCardNumber,
   normalizeGradingCompany,
 } from '@/lib/ebay/purchases/itemSpecifics';
+import { FULL_TEAM_NAMES_SORTED, inferSportFromTeamSubstring, sportForKnownTeam } from '@/components/import/ebay/knownTeams';
 
 export type LightParsed = {
   year: number | null;
@@ -25,8 +26,12 @@ export type LightParsed = {
   card_number_hint: string | null;
 };
 
-const BRAND_RE =
-  /\b(TOPPS|PANINI|BOWMAN|DONRUSS|PRIZM|MOSAIC|LEAF|UPPER DECK|SCORE|FLEER|WILD CARD)\b/i;
+const BRAND_ALT =
+  'TOPPS|PANINI|BOWMAN|DONRUSS|PRIZM|MOSAIC|LEAF|UPPER DECK|SCORE|FLEER|WILD CARD';
+/** Word-boundary match (may match mid-title). */
+const BRAND_RE = new RegExp(`\\b(${BRAND_ALT})\\b`, 'i');
+/** Start-anchored match so BOM/NBSP or `\b` quirks cannot shift `index` away from 0. */
+const BRAND_LEADING_RE = new RegExp(`^\\s*(${BRAND_ALT})\\b`, 'i');
 
 const PLAYER_STOP_RE =
   /\s+(?:1ST|FIRST|ON[-\s]?CARD|ROOKIE|RC)\b|\s+(?:BOWMAN|TOPPS|PANINI|DONRUSS|PRIZM|MOSAIC|LEAF|SCORE|FLEER)\b|\s*#/i;
@@ -62,7 +67,9 @@ export function mergeTitleAndItemSpecifics(
   const basePlayer = sanitizePlayerName(base.player_hint);
 
   if (!hasUsableItemSpecifics(itemSpecifics)) {
-    return { ...base, player_hint: basePlayer };
+    let ph = basePlayer;
+    if (looksLikeTitlePollutedPlayer(ph)) ph = null;
+    return { ...base, player_hint: ph };
   }
 
   const specifics = itemSpecifics!;
@@ -105,12 +112,22 @@ export function mergeTitleAndItemSpecifics(
 
   const sportFromLeague = inferSportFromLeague(leagueSpec);
 
-  const player_hint = sanitizePlayerName(
-    playerFromSpec ? toDisplayName(playerFromSpec) : basePlayer,
+  const useSpecPlayer =
+    playerFromSpec &&
+    !specificsPlayerLooksPolluted(playerFromSpec, title) &&
+    !looksLikeTitlePollutedPlayer(playerFromSpec);
+  let player_hint = sanitizePlayerName(
+    useSpecPlayer ? toDisplayName(playerFromSpec) : basePlayer,
   );
+  if (looksLikeTitlePollutedPlayer(player_hint)) player_hint = null;
 
   const team_hint = teamFromSpec ? toDisplayName(teamFromSpec.trim()) : base.team_hint;
-  const sport_hint = sportFromSpec ?? sportFromLeague ?? base.sport_hint;
+  const sport_hint =
+    sportFromSpec ??
+    sportFromLeague ??
+    base.sport_hint ??
+    sportForKnownTeam(team_hint) ??
+    inferSportFromTeamSubstring(title);
   const brand = manufacturerFromSpec ? titleCaseWord(manufacturerFromSpec.trim()) : base.brand;
   const set_hint = setFromSpec ? setFromSpec.trim() : base.set_hint;
   const parallel_hint = parallelFromSpec?.trim() ? parallelFromSpec.trim() : base.parallel_hint;
@@ -158,11 +175,8 @@ function parseGradingFromCondition(condition: string | null | undefined): {
 }
 
 export function lightParseTitle(title: string): LightParsed {
-  const t = title ?? '';
+  const t = normalizeListingTitle(title ?? '');
   const upper = t.toUpperCase();
-
-  const yearMatch = /\b(19[7-9]\d|20[0-3]\d)\b/.exec(t);
-  const year = yearMatch ? Number(yearMatch[1]) : null;
 
   const auto = /\b(AUTO|AUTOGRAPH)\b/i.test(t);
   const patch = /\b(PATCH|MEMORABILIA|RELIC)\b/i.test(t);
@@ -176,18 +190,76 @@ export function lightParseTitle(title: string): LightParsed {
 
   const graded = Boolean(company || /\bGRADED\b/i.test(t));
 
+  const { core, trailingTeamCandidate } = stripGradingSuffixForParsing(t);
+  const card_number_hint = extractCardNumberFromTitle(core);
+
+  const teamRawCanon = extractKnownTeamFromEnd(core) ?? fallbackTeamFromEnd(core);
+  let stripped = core
+    .trim()
+    .replace(/#\s*\d{1,4}\b/gi, ' ')
+    .replace(/#\s*[A-Z]{1,5}-?\d{2,4}\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (teamRawCanon) {
+    stripped = stripped.replace(new RegExp(`\\s+${escapeRe(teamRawCanon)}\\s*$`, 'i'), '').trim();
+  }
+
+  const structured = tryParseBrandLeadingTitle(stripped, core, teamRawCanon);
+  if (structured) {
+    const team_hint =
+      (teamRawCanon ? toDisplayName(teamRawCanon) : null) ??
+      pickTeamHint(trailingTeamCandidate, stripped, core);
+    let player_hint = structured.player_hint;
+    if (looksLikeTitlePollutedPlayer(player_hint)) player_hint = null;
+    const sport_hint =
+      structured.sport_hint ??
+      inferSportFromTitle(t) ??
+      sportForKnownTeam(teamRawCanon) ??
+      sportForKnownTeam(team_hint) ??
+      inferSportFromTeamSubstring(core);
+    const set_hint = structured.set_hint ?? inferSetHint(t) ?? inferSeasonProductSetHint(t);
+    const parallel_hint = inferParallelHint(t);
+
+    return {
+      year: structured.year,
+      graded,
+      grading_company: company,
+      grade,
+      auto,
+      patch,
+      rookie,
+      brand: structured.brand,
+      set_hint,
+      team_hint,
+      player_hint,
+      sport_hint,
+      parallel_hint,
+      card_number_hint,
+    };
+  }
+
+  const year = extractPrimaryYear(t);
   const brandMatch = BRAND_RE.exec(t);
   const brand = brandMatch ? titleCaseWord(brandMatch[1]) : null;
 
-  const card_number_hint = extractCardNumberFromTitle(t);
+  let coreForPlayer = core
+    .replace(/#\s*\d{1,4}\b/gi, ' ')
+    .replace(/#\s*[A-Z]{1,5}-?\d{2,4}\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  coreForPlayer = stripBrandAndSetPrefixForLegacyPlayer(coreForPlayer);
 
-  const { core, trailingTeamCandidate } = stripGradingSuffixForParsing(t);
-  let coreForPlayer = core.replace(/#\s*[A-Z]{1,5}-?\d{2,4}\b/gi, ' ').replace(/\s+/g, ' ').trim();
-
-  const team_hint = pickTeamHint(trailingTeamCandidate, coreForPlayer, t);
-  const player_hint = extractPlayerHint(coreForPlayer, year);
-  const sport_hint = inferSportFromTitle(t);
-  const set_hint = inferSetHint(t);
+  const team_hint =
+    (teamRawCanon ? toDisplayName(teamRawCanon) : null) ??
+    pickTeamHint(trailingTeamCandidate, coreForPlayer, t);
+  let player_hint = sanitizePlayerName(extractPlayerHint(coreForPlayer, year));
+  if (looksLikeTitlePollutedPlayer(player_hint)) player_hint = null;
+  const sport_hint =
+    inferSportFromTitle(t) ??
+    sportForKnownTeam(teamRawCanon) ??
+    sportForKnownTeam(team_hint) ??
+    inferSportFromTeamSubstring(core);
+  const set_hint = inferSetHint(t) ?? inferSeasonProductSetHint(t);
   const parallel_hint = inferParallelHint(t);
 
   return {
@@ -206,6 +278,179 @@ export function lightParseTitle(title: string): LightParsed {
     parallel_hint,
     card_number_hint,
   };
+}
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function normalizeListingTitle(s: string): string {
+  return s
+    .replace(/\uFEFF/g, '')
+    .replace(/[\u00A0\u2000-\u200B]/g, ' ')
+    .replace(/\u2013|\u2014/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** True when a saved player string still looks like listing metadata, not a person name. */
+function looksLikeTitlePollutedPlayer(name: string | null | undefined): boolean {
+  if (name == null || !String(name).trim()) return false;
+  const n = String(name).trim();
+  if (BRAND_LEADING_RE.test(n)) return true;
+  if (/\b20\d{2}-\d{2,4}\b/.test(n)) return true;
+  const wc = n.split(/\s+/).length;
+  if (wc >= 4 && /\b(Chrome|Prizm|Select|Mosaic|Sapphire|Bowman|Donruss)\b/i.test(n)) return true;
+  return false;
+}
+
+function specificsPlayerLooksPolluted(specPlayer: string, title: string): boolean {
+  const p = specPlayer.trim();
+  const tl = title.trim().toLowerCase();
+  if (!p) return true;
+  if (looksLikeTitlePollutedPlayer(p)) return true;
+  const head = p.slice(0, Math.min(28, p.length)).toLowerCase();
+  if (head.length >= 8 && tl.startsWith(head)) return true;
+  return false;
+}
+
+function stripBrandAndSetPrefixForLegacyPlayer(s: string): string {
+  let t = normalizeListingTitle(s);
+  const bl = BRAND_LEADING_RE.exec(t);
+  if (bl) t = t.slice(bl[0].length).trim();
+  const sr = extractSetLinePrefix(t);
+  if (sr) t = sr.rest;
+  return t;
+}
+
+function extractPrimaryYear(t: string): number | null {
+  const range = /\b(20[0-3]\d)-(?:\d{2,4})\b/.exec(t);
+  if (range) return Number(range[1]);
+  const ym = /\b(19[7-9]\d|20[0-3]\d)\b/.exec(t);
+  return ym ? Number(ym[1]) : null;
+}
+
+function extractKnownTeamFromEnd(title: string): string | null {
+  const trimmed = title.trim();
+  for (const team of FULL_TEAM_NAMES_SORTED) {
+    if (new RegExp(`${escapeRe(team)}\\s*$`, 'i').test(trimmed)) return team;
+  }
+  return null;
+}
+
+const TEAM_FALLBACK_STOP = new Set([
+  'card',
+  'base',
+  'set',
+  'rookie',
+  'chrome',
+  'sapphire',
+  'refractor',
+  'prizm',
+  'patch',
+  'auto',
+  'gem',
+  'mt',
+  'psa',
+  'raw',
+  'insert',
+  'parallel',
+  'relic',
+  'numbered',
+  'ser',
+  'sp',
+  'ssp',
+  'nft',
+  'trading',
+  'edition',
+  'prospect',
+  'prospects',
+  'choice',
+]);
+
+function fallbackTeamFromEnd(title: string): string | null {
+  const parts = title.trim().split(/\s+/);
+  if (parts.length < 2) return null;
+  const w1 = parts[parts.length - 2];
+  const w2 = parts[parts.length - 1];
+  if (w1.length < 2 || w2.length < 2) return null;
+  if (!/^[A-Za-z.'-]+$/.test(w1) || !/^[A-Za-z.'-]+$/.test(w2)) return null;
+  if (TEAM_FALLBACK_STOP.has(w1.toLowerCase()) || TEAM_FALLBACK_STOP.has(w2.toLowerCase())) return null;
+  if (/^\d+$/.test(w1)) return null;
+  return `${w1} ${w2}`;
+}
+
+function extractSetLinePrefix(s: string): { set: string; rest: string } | null {
+  const m1 = /^((?:19|20)\d{2}-\d{2,4})\s+(Chrome|Prizm|Select|Mosaic|Optic|Finest|Merlin)\b(?=\s+[A-Za-z])/i.exec(
+    s,
+  );
+  if (m1) return { set: `${m1[1]} ${m1[2]}`, rest: s.slice(m1[0].length).trim() };
+
+  const m2 =
+    /^((?:19|20)\d{2})\s+(Bowman(?:\s+Chrome)?|Donruss(?:\s+Optic)?|Flawless|Absolute|Contenders|National\s+Treasures|Obsidian|Phoenix)\b(?=\s+[A-Za-z])/i.exec(
+      s,
+    );
+  if (m2) return { set: m2[0].trim(), rest: s.slice(m2[0].length).trim() };
+
+  const m3 = /^((?:19|20)\d{2})\s+(Chrome|Prizm)\b(?=\s+[A-Za-z])/i.exec(s);
+  if (m3) return { set: `${m3[1]} ${m3[2]}`, rest: s.slice(m3[0].length).trim() };
+
+  const m0 = /^((?:19|20)\d{2}(?:-\d{2,4})?)\s+([A-Za-z]{2,24})\b(?=\s+[A-Za-z])/i.exec(s);
+  if (m0 && /^(Chrome|Prizm|Select|Mosaic|Optic|Bowman|Donruss|Score|Finest)$/i.test(m0[2])) {
+    return { set: `${m0[1]} ${m0[2]}`, rest: s.slice(m0[0].length).trim() };
+  }
+
+  return null;
+}
+
+function extractPlayerFromRemainder(s: string): string | null {
+  const cut =
+    s.split(/\s+(?:Rookie|\bRC\b|Base\b|Set\b|Card\b|Insert|Parallel|Patch|Auto|On[-\s]?Card|Serial)\b/i)[0]?.trim() ??
+    '';
+  if (!cut) return null;
+  let out = cut.replace(/\b\d{1,4}\b$/g, '').trim();
+  out = out.replace(/\s+#\s*$/g, '').trim();
+  return out || null;
+}
+
+function tryParseBrandLeadingTitle(
+  stripped: string,
+  origCore: string,
+  teamCanon: string | null,
+): Pick<LightParsed, 'player_hint' | 'set_hint' | 'brand' | 'year' | 'sport_hint'> | null {
+  const normStripped = normalizeListingTitle(stripped);
+  const brandLead = BRAND_LEADING_RE.exec(normStripped);
+  if (!brandLead) return null;
+
+  const brand = titleCaseWord(brandLead[1]);
+  let rest = normStripped.slice(brandLead[0].length).trim();
+
+  const setResult = extractSetLinePrefix(rest);
+  let set_hint: string | null = null;
+  if (setResult) {
+    set_hint = setResult.set;
+    rest = setResult.rest;
+  } else if (/\bPROJECT\s*70\b/i.test(rest)) {
+    return null;
+  } else if (/^(Chrome|Prizm|Bowman|Select|Mosaic)\b/i.test(rest)) {
+    return null;
+  }
+
+  const player_raw = extractPlayerFromRemainder(rest);
+  const player_hint = sanitizePlayerName(player_raw);
+  if (!player_hint || player_hint.replace(/\s/g, '').length < 3) return null;
+
+  const year = extractPrimaryYear(stripped);
+  const sport_hint =
+    inferSportFromTeamSubstring(origCore) ?? sportForKnownTeam(teamCanon) ?? null;
+
+  return { player_hint, set_hint, brand, year, sport_hint };
+}
+
+function inferSeasonProductSetHint(t: string): string | null {
+  const m = /\b((?:19|20)\d{2}-\d{2,4})\s+(Chrome|Prizm|Select|Mosaic|Optic)\b/i.exec(t);
+  if (m) return `${m[1]} ${m[2]}`;
+  return null;
 }
 
 function extractGradeDigits(s: string): string | null {
@@ -277,6 +522,8 @@ function extractCardNumberFromTitle(title: string): string | null {
   if (h2) return normalizeCardNumber(`${h2[1]}-${h2[2]}`);
   const h3 = /\b([A-Z]{1,5})-(\d{2,4})\b/i.exec(title);
   if (h3) return normalizeCardNumber(`${h3[1]}-${h3[2]}`);
+  const hNum = /#\s*(\d{2,4})\b/.exec(title);
+  if (hNum) return normalizeCardNumber(hNum[1]);
   return null;
 }
 
