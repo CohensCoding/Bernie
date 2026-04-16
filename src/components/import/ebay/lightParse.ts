@@ -145,8 +145,14 @@ export function mergeTitleAndItemSpecifics(
 
   const printRunSpec = getSpecificValue(specifics, 'Print Run', 'Print run');
   const fracFromSpec = parseSlashFractionFromString(printRunSpec);
-  const print_run_hint = fracFromSpec != null ? fracFromSpec.denom : base.print_run_hint;
-  const serial_number_hint = fracFromSpec != null ? fracFromSpec.serial : base.serial_number_hint;
+  const print_run_hint =
+    fracFromSpec != null
+      ? fracFromSpec.denom
+      : normalizeInt(getSpecificValue(specifics, 'PrintRun', 'Print Run', 'Print run')) ??
+        base.print_run_hint ??
+        extractPrintRunOutOf(title);
+  const serial_number_hint =
+    fracFromSpec != null ? fracFromSpec.serial : base.serial_number_hint;
 
   let rookie = base.rookie;
   if (features && /\brookie\b/i.test(features)) rookie = true;
@@ -189,6 +195,12 @@ function parseGradingFromCondition(condition: string | null | undefined): {
     company: normalizeGradingCompany(m[1]) ?? m[1].toUpperCase(),
     grade: m[2],
   };
+}
+
+function normalizeInt(raw: string | null | undefined): number | null {
+  if (!raw) return null;
+  const n = Number(String(raw).replace(/[^0-9]/g, ''));
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
 }
 
 export function lightParseTitle(title: string): LightParsed {
@@ -398,6 +410,16 @@ function extractSerialFractionFromTitle(title: string): { serial: number; denom:
   const denom = Number(last[2]);
   if (!Number.isFinite(serial) || !Number.isFinite(denom) || denom <= 0 || serial < 0) return null;
   return { serial, denom };
+}
+
+function extractPrintRunOutOf(title: string): number | null {
+  const t = normalizeListingTitle(title);
+  const m =
+    /\bout\s+of\s+(\d{2,5})\b/i.exec(t) ??
+    /\bof\s+(\d{2,5})\b/i.exec(t);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
 }
 
 /** Parse eBay-style "5/5" or "12/99" from item specifics text. */

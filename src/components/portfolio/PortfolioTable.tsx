@@ -23,8 +23,8 @@ type SortKey =
   | 'brandSet'
   | 'grade'
   | 'grader'
-  | 'purchasePrice'
   | 'totalCost'
+  | 'rarity'
   | 'purchaseDate'
   | 'sport'
   | 'team'
@@ -41,7 +41,7 @@ type ColumnKey =
   | 'grade'
   | 'grader'
   | 'platform'
-  | 'purchasePrice'
+  | 'rarity'
   | 'totalCost'
   | 'purchaseDate'
   | 'sport'
@@ -60,7 +60,7 @@ const DEFAULT_VISIBLE: Record<ColumnKey, boolean> = {
   grade: true,
   grader: false,
   platform: false,
-  purchasePrice: true,
+  rarity: true,
   totalCost: true,
   purchaseDate: true,
   sport: false,
@@ -77,7 +77,7 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   grade: 'Grade',
   grader: 'Grading company',
   platform: 'Platform',
-  purchasePrice: 'Purchase',
+  rarity: 'Rarity',
   totalCost: 'Total cost',
   purchaseDate: 'Date',
   sport: 'Sport',
@@ -94,7 +94,7 @@ const MOBILE_PRIMARY: Record<ColumnKey, boolean> = {
   grade: true,
   grader: false,
   platform: false,
-  purchasePrice: false,
+  rarity: false,
   totalCost: true,
   purchaseDate: true,
   sport: false,
@@ -180,6 +180,14 @@ function gradeLabelFor(c: PortfolioRow['card']) {
 
 function isNumbered(c: PortfolioRow['card']) {
   return (c.serial_number != null && c.serial_number > 0) || c.print_run != null;
+}
+
+function rarityLabelFor(c: PortfolioRow['card']): string {
+  const serial = c.serial_number != null && c.serial_number > 0 ? c.serial_number : null;
+  const run = c.print_run != null && c.print_run > 0 ? c.print_run : null;
+  if (serial != null && run != null) return `${serial}/${run}`;
+  if (run != null) return `of ${run}`;
+  return 'Base';
 }
 
 function parseMoneyToCents(raw: string): number | null {
@@ -530,10 +538,14 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
           return `${c.graded ? 1 : 0} ${norm(c.grading_company)} ${norm(c.grade)}`;
         case 'grader':
           return norm(c.grading_company);
-        case 'purchasePrice':
-          return tx?.purchase_price_cents ?? -1;
         case 'totalCost':
           return tx?.total_cost_cents ?? -1;
+        case 'rarity': {
+          const run = c.print_run ?? 0;
+          const serial = c.serial_number ?? 0;
+          // Prefer smaller runs first when sorting desc/asc is applied.
+          return run > 0 ? run * 10000 + (serial > 0 ? serial : 9999) : 999999999;
+        }
         case 'purchaseDate':
           return tx?.purchase_date ?? '';
         case 'sport':
@@ -616,7 +628,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
     (visibleCols.grade ? 1 : 0) +
     (visibleCols.grader ? 1 : 0) +
     (visibleCols.platform ? 1 : 0) +
-    (visibleCols.purchasePrice ? 1 : 0) +
+    (visibleCols.rarity ? 1 : 0) +
     (visibleCols.totalCost ? 1 : 0) +
     (visibleCols.purchaseDate ? 1 : 0) +
     (visibleCols.sport ? 1 : 0) +
@@ -655,8 +667,8 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
             <option value="purchaseDate:asc">Purchase date (old)</option>
             <option value="totalCost:desc">Total cost (high)</option>
             <option value="totalCost:asc">Total cost (low)</option>
-            <option value="purchasePrice:desc">Purchase (high)</option>
-            <option value="purchasePrice:asc">Purchase (low)</option>
+            <option value="rarity:asc">Rarity (numbered first)</option>
+            <option value="rarity:desc">Rarity (base first)</option>
             <option value="player:asc">Player (A–Z)</option>
             <option value="player:desc">Player (Z–A)</option>
             <option value="year:desc">Year (new)</option>
@@ -1036,12 +1048,12 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                     Platform{sortIndicator('platform')}
                   </th>
                 ) : null}
-                {visibleCols.purchasePrice ? (
+                {visibleCols.rarity ? (
                   <th
-                    className={`px-3 py-2.5 cursor-pointer ${MOBILE_PRIMARY.purchasePrice ? '' : 'hidden sm:table-cell'}`}
-                    onClick={() => toggleSort('purchasePrice')}
+                    className={`px-3 py-2.5 cursor-pointer ${MOBILE_PRIMARY.rarity ? '' : 'hidden sm:table-cell'}`}
+                    onClick={() => toggleSort('rarity')}
                   >
-                    Purchase{sortIndicator('purchasePrice')}
+                    Rarity{sortIndicator('rarity')}
                   </th>
                 ) : null}
                 {visibleCols.totalCost ? (
@@ -1155,11 +1167,11 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                     {t?.platform ?? '—'}
                   </td>
                 ) : null}
-                    {visibleCols.purchasePrice ? (
-                  <td
-                    className={`px-3 py-2.5 text-sm tabular-nums text-fg ${MOBILE_PRIMARY.purchasePrice ? '' : 'hidden sm:table-cell'}`}
-                  >
-                        {t ? formatUsdFromCents(t.purchase_price_cents) : '—'}
+                    {visibleCols.rarity ? (
+                      <td
+                        className={`px-3 py-2.5 text-sm tabular-nums text-fg ${MOBILE_PRIMARY.rarity ? '' : 'hidden sm:table-cell'}`}
+                      >
+                        {rarityLabelFor(c)}
                       </td>
                     ) : null}
                     {visibleCols.totalCost ? (
