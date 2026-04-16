@@ -125,13 +125,19 @@ export function mergeTitleAndItemSpecifics(
   );
   if (looksLikeTitlePollutedPlayer(player_hint)) player_hint = null;
 
-  const team_hint = teamFromSpec ? toDisplayName(teamFromSpec.trim()) : base.team_hint;
+  const teamFromTitle = base.team_hint ? toDisplayName(base.team_hint) : null;
+  let team_hint = teamFromSpec ? toDisplayName(teamFromSpec.trim()) : teamFromTitle;
+  if (teamFromSpec && teamFromTitle && teamsStronglyConflict(teamFromSpec, teamFromTitle)) {
+    // Prefer blank over wrong when title and specifics strongly disagree.
+    team_hint = null;
+  }
   const sport_hint =
     sportFromSpec ??
     sportFromLeague ??
     base.sport_hint ??
     sportForKnownTeam(team_hint) ??
-    inferSportFromTeamSubstring(title);
+    inferSportFromTeamSubstring(title) ??
+    inferSportFromIdCues(title);
   const brand = manufacturerFromSpec ? titleCaseWord(manufacturerFromSpec.trim()) : base.brand;
   const set_hint = setFromSpec ? setFromSpec.trim() : base.set_hint;
   const parallel_hint = parallelFromSpec?.trim() ? parallelFromSpec.trim() : base.parallel_hint;
@@ -264,7 +270,8 @@ export function lightParseTitle(title: string): LightParsed {
       inferSportFromTitle(t) ??
       sportForKnownTeam(teamRawCanon) ??
       sportForKnownTeam(team_hint) ??
-      inferSportFromTeamSubstring(core);
+      inferSportFromTeamSubstring(core) ??
+      inferSportFromIdCues(core);
     const set_hint = structured.set_hint ?? inferSetHint(t) ?? inferSeasonProductSetHint(t);
     const parallel_hint = inferParallelHint(t);
     const frac = extractSerialFractionFromTitle(core);
@@ -309,7 +316,8 @@ export function lightParseTitle(title: string): LightParsed {
     inferSportFromTitle(t) ??
     sportForKnownTeam(teamRawCanon) ??
     sportForKnownTeam(team_hint) ??
-    inferSportFromTeamSubstring(core);
+    inferSportFromTeamSubstring(core) ??
+    inferSportFromIdCues(core);
   const set_hint = inferSetHint(t) ?? inferSeasonProductSetHint(t);
   const parallel_hint = inferParallelHint(t);
   const frac = extractSerialFractionFromTitle(core);
@@ -661,6 +669,25 @@ function inferSportFromTitle(t: string): string | null {
   if (/\bHOCKEY\b|\bNHL\b/.test(u)) return 'Hockey';
   if (/\bSOCCER\b|\bMLS\b|\bFIFA\b|\bUEFA\b|\bPREMIER\s+LEAGUE\b/.test(u)) return 'Soccer';
   return null;
+}
+
+function inferSportFromIdCues(t: string): string | null {
+  // Conservative: only use strong card-number cues when sport is otherwise missing.
+  if (/\bBCP-?\d{2,4}\b/i.test(t)) return 'Baseball';
+  return null;
+}
+
+function teamsStronglyConflict(a: string, b: string): boolean {
+  const na = normalizeTeamName(a);
+  const nb = normalizeTeamName(b);
+  if (!na || !nb) return false;
+  if (na === nb) return false;
+  if (na.includes(nb) || nb.includes(na)) return false;
+  return true;
+}
+
+function normalizeTeamName(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function inferSetHint(t: string): string | null {
