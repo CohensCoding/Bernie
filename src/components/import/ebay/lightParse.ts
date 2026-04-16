@@ -24,6 +24,10 @@ export type LightParsed = {
   sport_hint: string | null;
   parallel_hint: string | null;
   card_number_hint: string | null;
+  /** From patterns like "5/99" at end of title (denominator → print run). */
+  print_run_hint: number | null;
+  /** Numerator from "5/99" when present. */
+  serial_number_hint: number | null;
 };
 
 const BRAND_ALT =
@@ -133,6 +137,11 @@ export function mergeTitleAndItemSpecifics(
   const parallel_hint = parallelFromSpec?.trim() ? parallelFromSpec.trim() : base.parallel_hint;
   const card_number_hint = cardFromSpec ?? base.card_number_hint;
 
+  const printRunSpec = getSpecificValue(specifics, 'Print Run', 'Print run');
+  const fracFromSpec = parseSlashFractionFromString(printRunSpec);
+  const print_run_hint = fracFromSpec != null ? fracFromSpec.denom : base.print_run_hint;
+  const serial_number_hint = fracFromSpec != null ? fracFromSpec.serial : base.serial_number_hint;
+
   let rookie = base.rookie;
   if (features && /\brookie\b/i.test(features)) rookie = true;
   if (typeSpec && /\brookie\b/i.test(typeSpec)) rookie = true;
@@ -158,6 +167,8 @@ export function mergeTitleAndItemSpecifics(
     sport_hint,
     parallel_hint,
     card_number_hint,
+    print_run_hint,
+    serial_number_hint,
   };
 }
 
@@ -204,6 +215,43 @@ export function lightParseTitle(title: string): LightParsed {
     stripped = stripped.replace(new RegExp(`\\s+${escapeRe(teamRawCanon)}\\s*$`, 'i'), '').trim();
   }
 
+  const peelYearFirst = peelYearManufacturerProductAndParallel(stripped);
+  if (peelYearFirst) {
+    const team_hint =
+      (teamRawCanon ? toDisplayName(teamRawCanon) : null) ??
+      pickTeamHint(trailingTeamCandidate, peelYearFirst.rest, core);
+    const frac = extractSerialFractionFromTitle(core);
+    let player_hint =
+      sanitizePlayerName(extractPlayerFromRemainder(peelYearFirst.rest)) ??
+      sanitizePlayerName(extractPlayerHint(peelYearFirst.rest, peelYearFirst.year));
+    if (looksLikeTitlePollutedPlayer(player_hint)) player_hint = null;
+    const sport_hint =
+      inferSportFromTitle(t) ??
+      sportForKnownTeam(teamRawCanon) ??
+      sportForKnownTeam(team_hint) ??
+      inferSportFromTeamSubstring(core);
+    const parallel_hint = peelYearFirst.parallelColor ?? inferParallelHint(t);
+
+    return {
+      year: peelYearFirst.year,
+      graded,
+      grading_company: company,
+      grade,
+      auto,
+      patch,
+      rookie,
+      brand: titleCaseWord(peelYearFirst.manufacturer),
+      set_hint: peelYearFirst.setLabel,
+      team_hint,
+      player_hint,
+      sport_hint,
+      parallel_hint,
+      card_number_hint,
+      print_run_hint: frac?.denom ?? null,
+      serial_number_hint: frac?.serial ?? null,
+    };
+  }
+
   const structured = tryParseBrandLeadingTitle(stripped, core, teamRawCanon);
   if (structured) {
     const team_hint =
@@ -219,6 +267,7 @@ export function lightParseTitle(title: string): LightParsed {
       inferSportFromTeamSubstring(core);
     const set_hint = structured.set_hint ?? inferSetHint(t) ?? inferSeasonProductSetHint(t);
     const parallel_hint = inferParallelHint(t);
+    const frac = extractSerialFractionFromTitle(core);
 
     return {
       year: structured.year,
@@ -235,6 +284,8 @@ export function lightParseTitle(title: string): LightParsed {
       sport_hint,
       parallel_hint,
       card_number_hint,
+      print_run_hint: frac?.denom ?? null,
+      serial_number_hint: frac?.serial ?? null,
     };
   }
 
@@ -261,6 +312,7 @@ export function lightParseTitle(title: string): LightParsed {
     inferSportFromTeamSubstring(core);
   const set_hint = inferSetHint(t) ?? inferSeasonProductSetHint(t);
   const parallel_hint = inferParallelHint(t);
+  const frac = extractSerialFractionFromTitle(core);
 
   return {
     year,
@@ -277,6 +329,8 @@ export function lightParseTitle(title: string): LightParsed {
     sport_hint,
     parallel_hint,
     card_number_hint,
+    print_run_hint: frac?.denom ?? null,
+    serial_number_hint: frac?.serial ?? null,
   };
 }
 
@@ -300,7 +354,7 @@ function looksLikeTitlePollutedPlayer(name: string | null | undefined): boolean 
   if (BRAND_LEADING_RE.test(n)) return true;
   if (/\b20\d{2}-\d{2,4}\b/.test(n)) return true;
   const wc = n.split(/\s+/).length;
-  if (wc >= 4 && /\b(Chrome|Prizm|Select|Mosaic|Sapphire|Bowman|Donruss)\b/i.test(n)) return true;
+  if (wc >= 4 && /\b(Chrome|Prizm|Select|Mosaic|Sapphire|Bowman|Donruss|Flawless|Optic)\b/i.test(n)) return true;
   return false;
 }
 
@@ -316,11 +370,65 @@ function specificsPlayerLooksPolluted(specPlayer: string, title: string): boolea
 
 function stripBrandAndSetPrefixForLegacyPlayer(s: string): string {
   let t = normalizeListingTitle(s);
+  const peel = peelYearManufacturerProductAndParallel(t);
+  if (peel) return peel.rest;
   const bl = BRAND_LEADING_RE.exec(t);
   if (bl) t = t.slice(bl[0].length).trim();
   const sr = extractSetLinePrefix(t);
   if (sr) t = sr.rest;
   return t;
+}
+
+/** Last "a/b" fraction in title (e.g. serial 5 of 5). */
+function extractSerialFractionFromTitle(title: string): { serial: number; denom: number } | null {
+  const re = /\b(\d{1,4})\s*\/\s*(\d{1,4})\b/g;
+  let last: RegExpExecArray | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(title)) !== null) last = m;
+  if (!last) return null;
+  const serial = Number(last[1]);
+  const denom = Number(last[2]);
+  if (!Number.isFinite(serial) || !Number.isFinite(denom) || denom <= 0 || serial < 0) return null;
+  return { serial, denom };
+}
+
+/** Parse eBay-style "5/5" or "12/99" from item specifics text. */
+export function parseSlashFractionFromString(raw: string | null | undefined): { serial: number; denom: number } | null {
+  if (!raw) return null;
+  const t = String(raw).trim();
+  const m = /^(\d{1,4})\s*\/\s*(\d{1,4})\b/.exec(t) ?? /\b(\d{1,4})\s*\/\s*(\d{1,4})\b/.exec(t);
+  if (!m) return null;
+  const serial = Number(m[1]);
+  const denom = Number(m[2]);
+  if (!Number.isFinite(serial) || !Number.isFinite(denom) || denom <= 0) return null;
+  return { serial, denom };
+}
+
+/**
+ * `YYYY Manufacturer Product [ParallelColor] Player…` (common Panini/Topps listings).
+ * Does not match year-first Bowman-only lines; those use `extractSetLinePrefix` after stripping.
+ */
+function peelYearManufacturerProductAndParallel(s: string): {
+  year: number;
+  manufacturer: string;
+  product: string;
+  parallelColor: string | null;
+  setLabel: string;
+  rest: string;
+} | null {
+  const norm = normalizeListingTitle(s);
+  const re =
+    /^((?:19|20)\d{2})\s+(Panini|Topps|Bowman|Donruss|Leaf|Fleer|Score)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)(?:\s+(Green|Gold|Blue|Red|Silver|Orange|Purple|Yellow|Black|Platinum|Ruby|Sapphire|Grass|Ice|Pink|Lava|Shimmer|Teal|Aqua|Neon|Wave|Cosmic))?(?=\s+[A-Z])/i;
+  const m = re.exec(norm);
+  if (!m) return null;
+  const rest = norm.slice(m[0].length).trim();
+  if (rest.length < 2) return null;
+  const year = Number(m[1]);
+  const manufacturer = m[2];
+  const product = m[3].trim();
+  const parallelColor = m[4] ?? null;
+  const setLabel = `${m[1]} ${manufacturer} ${product}`.replace(/\s+/g, ' ');
+  return { year, manufacturer, product, parallelColor, setLabel, rest };
 }
 
 function extractPrimaryYear(t: string): number | null {
@@ -386,6 +494,12 @@ function extractSetLinePrefix(s: string): { set: string; rest: string } | null {
   );
   if (m1) return { set: `${m1[1]} ${m1[2]}`, rest: s.slice(m1[0].length).trim() };
 
+  const mPanini =
+    /^((?:19|20)\d{2})\s+(Panini|Topps)\s+(Flawless|Select|Prizm|Mosaic|Obsidian|Contenders|Absolute|Phoenix)\b(?=\s+[A-Za-z])/i.exec(
+      s,
+    );
+  if (mPanini) return { set: mPanini[0].trim(), rest: s.slice(mPanini[0].length).trim() };
+
   const m2 =
     /^((?:19|20)\d{2})\s+(Bowman(?:\s+Chrome)?|Donruss(?:\s+Optic)?|Flawless|Absolute|Contenders|National\s+Treasures|Obsidian|Phoenix)\b(?=\s+[A-Za-z])/i.exec(
       s,
@@ -404,11 +518,12 @@ function extractSetLinePrefix(s: string): { set: string; rest: string } | null {
 }
 
 function extractPlayerFromRemainder(s: string): string | null {
-  const cut =
+  let head =
     s.split(/\s+(?:Rookie|\bRC\b|Base\b|Set\b|Card\b|Insert|Parallel|Patch|Auto|On[-\s]?Card|Serial)\b/i)[0]?.trim() ??
     '';
-  if (!cut) return null;
-  let out = cut.replace(/\b\d{1,4}\b$/g, '').trim();
+  if (!head) return null;
+  head = head.replace(/\s+\d{1,4}\s*\/\s*\d{1,4}\s*$/g, '').trim();
+  let out = head.replace(/\b\d{1,4}\b$/g, '').trim();
   out = out.replace(/\s+#\s*$/g, '').trim();
   return out || null;
 }

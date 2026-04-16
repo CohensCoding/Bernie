@@ -33,6 +33,8 @@ export function EbayImportReviewClient() {
   const [team, setTeam] = useState('');
   const [parallel, setParallel] = useState('');
   const [cardNumber, setCardNumber] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
+  const [printRun, setPrintRun] = useState('');
   const [rookie, setRookie] = useState(false);
   const [graded, setGraded] = useState(false);
   const [grader, setGrader] = useState('');
@@ -69,6 +71,8 @@ export function EbayImportReviewClient() {
         setTeam(parsed.team_hint ?? '');
         setParallel(parsed.parallel_hint ?? '');
         setCardNumber(parsed.card_number_hint ?? '');
+        setSerialNumber(parsed.serial_number_hint != null ? String(parsed.serial_number_hint) : '');
+        setPrintRun(parsed.print_run_hint != null ? String(parsed.print_run_hint) : '');
         setRookie(parsed.rookie);
         setGraded(parsed.graded);
         setGrader(parsed.grading_company ?? '');
@@ -172,6 +176,14 @@ export function EbayImportReviewClient() {
           <span className="text-fg-muted">Parallel</span>
           <input value={parallel} onChange={(e) => setParallel(e.target.value)} className={inputClass} />
         </label>
+        <label className="text-sm">
+          <span className="text-fg-muted">Serial #</span>
+          <input value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} className={inputClass} inputMode="numeric" />
+        </label>
+        <label className="text-sm">
+          <span className="text-fg-muted">Print run</span>
+          <input value={printRun} onChange={(e) => setPrintRun(e.target.value)} className={inputClass} inputMode="numeric" />
+        </label>
       </div>
 
       <div className="grid gap-4 rounded-2xl border border-border/70 bg-bg-muted/20 p-4 sm:grid-cols-2">
@@ -254,6 +266,10 @@ export function EbayImportReviewClient() {
                     set_name: setName.trim() || null,
                     card_number: cardNumber.trim() || null,
                     parallel: parallel.trim() || null,
+                    serial_number:
+                      serialNumber.trim() !== '' && Number.isFinite(Number(serialNumber)) ? Math.trunc(Number(serialNumber)) : null,
+                    print_run:
+                      printRun.trim() !== '' && Number.isFinite(Number(printRun)) ? Math.trunc(Number(printRun)) : null,
                     rookie,
                     auto,
                     patch,
