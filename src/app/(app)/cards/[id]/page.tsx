@@ -25,6 +25,14 @@ function Pill({ children }: { children: React.ReactNode }) {
   );
 }
 
+function rarityLabelFor(card: { serial_number: number | null; print_run: number | null }) {
+  const serial = card.serial_number != null && card.serial_number > 0 ? card.serial_number : null;
+  const run = card.print_run != null && card.print_run > 0 ? card.print_run : null;
+  if (serial != null && run != null) return `${serial}/${run}`;
+  if (run != null) return `of ${run}`;
+  return 'Base';
+}
+
 export default async function CardDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
@@ -70,7 +78,7 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
             {card?.rookie ? <Pill>Rookie</Pill> : null}
             {card?.auto ? <Pill>Auto</Pill> : null}
             {card?.patch ? <Pill>Patch</Pill> : null}
-            {card?.serial_number ? <Pill>#{card.serial_number}</Pill> : null}
+            {card ? <Pill>{rarityLabelFor(card)}</Pill> : null}
             {card?.graded ? (
               <Pill>
                 {card.grading_company ?? 'Graded'} {card.grade ?? ''}
@@ -153,6 +161,7 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
                 <Field label="Sport" value={detail.card.sport ?? '—'} />
                 <Field label="Team" value={detail.card.team ?? '—'} />
                 <Field label="Set" value={`${detail.card.brand ?? '—'} · ${detail.card.set_name ?? '—'}`} />
+                <Field label="Rarity" value={rarityLabelFor(detail.card)} />
               </div>
             </UiCard>
           </section>
