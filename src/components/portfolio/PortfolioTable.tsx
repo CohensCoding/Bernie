@@ -6,6 +6,23 @@ import { useRouter } from 'next/navigation';
 import type { PortfolioRow } from '@/lib/db/portfolio';
 import { formatUsdFromCents } from '@/lib/money';
 
+function marketCurrentValueDisplay(v: PortfolioRow['valuation_current']) {
+  if (!v || v.status !== 'ok' || v.mid_cents == null) return '—';
+  return formatUsdFromCents(v.mid_cents);
+}
+
+function marketConfidenceDisplay(v: PortfolioRow['valuation_current']) {
+  if (v?.confidence != null && Number.isFinite(Number(v.confidence))) {
+    return `${Math.round(Number(v.confidence) * 100)}%`;
+  }
+  return 'Not valued';
+}
+
+function marketLastUpdatedDisplay(v: PortfolioRow['valuation_current']) {
+  if (!v?.last_valued_at) return '—';
+  return new Date(v.last_valued_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+}
+
 function initialsFromCard(c: PortfolioRow['card']) {
   const raw = (c.player_name ?? c.title_raw ?? '').trim();
   if (!raw) return 'BC';
@@ -45,7 +62,6 @@ type ColumnKey =
   | 'totalCost'
   | 'currentValue'
   | 'gainLoss'
-  | 'gainLossPct'
   | 'lastUpdated'
   | 'confidence'
   | 'purchaseDate'
@@ -53,7 +69,7 @@ type ColumnKey =
   | 'team'
   | 'notes';
 
-const COLUMN_STORAGE_KEY = 'bernie.cards.table.columns.v2';
+const COLUMN_STORAGE_KEY = 'bernie.cards.table.columns.v3';
 
 /** Calm default: scan-friendly inventory columns. */
 const DEFAULT_VISIBLE: Record<ColumnKey, boolean> = {
@@ -69,7 +85,6 @@ const DEFAULT_VISIBLE: Record<ColumnKey, boolean> = {
   totalCost: true,
   currentValue: false,
   gainLoss: false,
-  gainLossPct: false,
   lastUpdated: false,
   confidence: false,
   purchaseDate: true,
@@ -89,10 +104,9 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   platform: 'Platform',
   rarity: 'Rarity',
   totalCost: 'Total cost',
-  currentValue: 'Current value',
-  gainLoss: 'Gain/Loss $',
-  gainLossPct: 'Gain/Loss %',
-  lastUpdated: 'Last updated',
+  currentValue: 'Current Value',
+  gainLoss: 'P/L ($)',
+  lastUpdated: 'Last Updated',
   confidence: 'Confidence',
   purchaseDate: 'Date',
   sport: 'Sport',
@@ -113,7 +127,6 @@ const MOBILE_PRIMARY: Record<ColumnKey, boolean> = {
   totalCost: true,
   currentValue: false,
   gainLoss: false,
-  gainLossPct: false,
   lastUpdated: false,
   confidence: false,
   purchaseDate: true,
@@ -378,6 +391,37 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
   const [bulkSport, setBulkSport] = useState('');
   const [bulkApplyTeam, setBulkApplyTeam] = useState(false);
   const [bulkTeam, setBulkTeam] = useState('');
+  const [valRefreshingId, setValRefreshingId] = useState<string | null>(null);
+  const [valNotice, setValNotice] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  const refreshCardValue = useCallback(
+    async (cardId: string) => {
+      setValRefreshingId(cardId);
+      setValNotice(null);
+      try {
+        const res = await fetch('/api/valuations/refresh', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ cardId }),
+        });
+        const json = (await res.json()) as { error?: string };
+        if (!res.ok) throw new Error(json?.error ?? 'Refresh failed.');
+        setValNotice({ type: 'ok', text: 'Value updated' });
+        router.refresh();
+      } catch (e) {
+        setValNotice({ type: 'err', text: e instanceof Error ? e.message : 'Refresh failed.' });
+      } finally {
+        setValRefreshingId(null);
+      }
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    if (!valNotice) return;
+    const t = window.setTimeout(() => setValNotice(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [valNotice]);
 
   useEffect(() => {
     setVisibleCols(loadColumnVisibility());
@@ -652,7 +696,6 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
     (visibleCols.totalCost ? 1 : 0) +
     (visibleCols.currentValue ? 1 : 0) +
     (visibleCols.gainLoss ? 1 : 0) +
-    (visibleCols.gainLossPct ? 1 : 0) +
     (visibleCols.lastUpdated ? 1 : 0) +
     (visibleCols.confidence ? 1 : 0) +
     (visibleCols.purchaseDate ? 1 : 0) +
@@ -766,6 +809,18 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
           </div>
         </div>
       </div>
+
+      {valNotice ? (
+        <div
+          className={`rounded-2xl border px-4 py-3 text-sm ${
+            valNotice.type === 'ok'
+              ? 'border-emerald-500/25 bg-emerald-500/[0.06] text-emerald-100'
+              : 'border-red-500/25 bg-red-500/[0.06] text-red-100'
+          }`}
+        >
+          {valNotice.text}
+        </div>
+      ) : null}
 
       {chips.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
@@ -981,6 +1036,17 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                             </button>
                             <button
                               type="button"
+                              disabled={valRefreshingId === c.id}
+                              onClick={() => {
+                                setRowMenu(null);
+                                void refreshCardValue(c.id);
+                              }}
+                              className="block w-full px-3 py-2 text-left text-sm text-fg hover:bg-bg-muted/60 disabled:opacity-60"
+                            >
+                              {valRefreshingId === c.id ? 'Refreshing…' : 'Refresh value'}
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => {
                                 setRowMenu(null);
                                 router.push(`/cards/${c.id}/edit`);
@@ -1086,11 +1152,12 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                     Total{sortIndicator('totalCost')}
                   </th>
                 ) : null}
-                {visibleCols.currentValue ? <th className="px-3 py-2.5">Value</th> : null}
-                {visibleCols.gainLoss ? <th className="px-3 py-2.5">Gain/Loss</th> : null}
-                {visibleCols.gainLossPct ? <th className="px-3 py-2.5">Gain/Loss %</th> : null}
-                {visibleCols.lastUpdated ? <th className="px-3 py-2.5">Updated</th> : null}
-                {visibleCols.confidence ? <th className="px-3 py-2.5">Conf.</th> : null}
+                {visibleCols.currentValue ? (
+                  <th className="px-3 py-2.5">{COLUMN_LABELS.currentValue}</th>
+                ) : null}
+                {visibleCols.gainLoss ? <th className="px-3 py-2.5">{COLUMN_LABELS.gainLoss}</th> : null}
+                {visibleCols.lastUpdated ? <th className="px-3 py-2.5">{COLUMN_LABELS.lastUpdated}</th> : null}
+                {visibleCols.confidence ? <th className="px-3 py-2.5">{COLUMN_LABELS.confidence}</th> : null}
                 {visibleCols.purchaseDate ? (
                   <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('purchaseDate')}>
                     Date{sortIndicator('purchaseDate')}
@@ -1123,10 +1190,8 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                 const c = r.card;
                 const t = r.latestTransaction;
                 const v = r.valuation_current;
-                const mid = v?.mid_cents ?? null;
+                const mid = v?.status === 'ok' ? (v.mid_cents ?? null) : null;
                 const gain = mid != null && t ? mid - (t.total_cost_cents ?? 0) : null;
-                const gainPct =
-                  gain != null && t && (t.total_cost_cents ?? 0) > 0 ? gain / (t.total_cost_cents ?? 0) : null;
                 const gradeLabel = c.graded ? `${c.grading_company ?? ''} ${c.grade ?? ''}`.trim() : 'Raw';
                 const isSelected = Boolean(selected[c.id]);
                 return (
@@ -1216,7 +1281,7 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                     ) : null}
                     {visibleCols.currentValue ? (
                       <td className="px-3 py-2.5 text-sm tabular-nums text-fg whitespace-nowrap">
-                        {mid != null ? formatUsdFromCents(mid) : '—'}
+                        {marketCurrentValueDisplay(v)}
                       </td>
                     ) : null}
                     {visibleCols.gainLoss ? (
@@ -1228,19 +1293,14 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                         )}
                       </td>
                     ) : null}
-                    {visibleCols.gainLossPct ? (
-                      <td className="px-3 py-2.5 text-sm tabular-nums text-fg whitespace-nowrap">
-                        {gainPct != null ? `${Math.round(gainPct * 100)}%` : '—'}
-                      </td>
-                    ) : null}
                     {visibleCols.lastUpdated ? (
                       <td className="px-3 py-2.5 text-sm tabular-nums text-fg whitespace-nowrap">
-                        {v?.last_valued_at ? new Date(v.last_valued_at).toLocaleDateString() : '—'}
+                        {marketLastUpdatedDisplay(v)}
                       </td>
                     ) : null}
                     {visibleCols.confidence ? (
                       <td className="px-3 py-2.5 text-sm tabular-nums text-fg whitespace-nowrap">
-                        {v?.confidence != null ? `${Math.round(v.confidence * 100)}%` : '—'}
+                        {marketConfidenceDisplay(v)}
                       </td>
                     ) : null}
                     {visibleCols.purchaseDate ? (
@@ -1291,6 +1351,17 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                               className="block w-full px-3 py-2 text-left text-sm text-fg hover:bg-bg-muted/60"
                             >
                               View
+                            </button>
+                            <button
+                              type="button"
+                              disabled={valRefreshingId === c.id}
+                              onClick={() => {
+                                setRowMenu(null);
+                                void refreshCardValue(c.id);
+                              }}
+                              className="block w-full px-3 py-2 text-left text-sm text-fg hover:bg-bg-muted/60 disabled:opacity-60"
+                            >
+                              {valRefreshingId === c.id ? 'Refreshing…' : 'Refresh value'}
                             </button>
                             <button
                               type="button"
