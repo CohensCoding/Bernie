@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { formatUsdFromCents } from '@/lib/money';
-import { getDashboardData } from '@/lib/db/portfolio';
+import { getDashboardData, getPortfolioValueSummary } from '@/lib/db/portfolio';
 import { SpendBars } from '@/components/viz/SpendBars';
 import { CountBars } from '@/components/viz/CountBars';
 
@@ -29,9 +29,10 @@ function Section({
 
 export default async function PortfolioAnalyticsPage() {
   let data: Awaited<ReturnType<typeof getDashboardData>> | null = null;
+  let value: Awaited<ReturnType<typeof getPortfolioValueSummary>> | null = null;
   let error: string | null = null;
   try {
-    data = await getDashboardData();
+    [data, value] = await Promise.all([getDashboardData(), getPortfolioValueSummary()]);
   } catch (e) {
     error = e instanceof Error ? e.message : 'Unknown error';
   }
@@ -60,6 +61,83 @@ export default async function PortfolioAnalyticsPage() {
 
       {!data ? null : (
         <>
+          {value ? (
+            <Section kicker="Tracker" title="Portfolio value">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <Card>
+                  <CardHeader title="Cost basis" subtitle="Total invested (latest transactions)" />
+                  <div className="mt-4 text-2xl font-semibold tracking-tight text-fg">
+                    {formatUsdFromCents(value.totalCostBasisCents)}
+                  </div>
+                </Card>
+                <Card>
+                  <CardHeader title="Estimated value" subtitle="Conservative mid estimate" />
+                  <div className="mt-4 text-2xl font-semibold tracking-tight text-fg">
+                    {formatUsdFromCents(value.totalEstimatedValueCents)}
+                  </div>
+                </Card>
+                <Card>
+                  <CardHeader title="Unrealized P/L" subtitle="Estimate minus cost basis" />
+                  <div className="mt-4 text-2xl font-semibold tracking-tight">
+                    <span className={value.unrealizedGainCents >= 0 ? 'text-emerald-200' : 'text-red-200'}>
+                      {formatUsdFromCents(value.unrealizedGainCents)}
+                    </span>
+                    {value.unrealizedGainPct != null ? (
+                      <span className="ml-2 text-sm text-fg-muted">{`(${Math.round(value.unrealizedGainPct * 100)}%)`}</span>
+                    ) : null}
+                  </div>
+                </Card>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <Card>
+                  <CardHeader title="Best performers" subtitle="Highest unrealized gain" />
+                  <div className="mt-4 space-y-2">
+                    {value.bestPerformers.length === 0 ? (
+                      <div className="text-sm text-fg-muted">No valued cards yet.</div>
+                    ) : (
+                      value.bestPerformers.map((r) => (
+                        <Link
+                          key={r.card_id}
+                          href={`/cards/${r.card_id}`}
+                          className="flex items-center justify-between rounded-xl border border-border/70 bg-bg-muted/40 px-3 py-2 text-sm transition hover:bg-bg-elevated/60"
+                        >
+                          <span className="min-w-0 truncate pr-3 font-medium text-fg">{r.label}</span>
+                          <span className="shrink-0 text-xs text-emerald-200">
+                            {formatUsdFromCents(r.gain_cents)}
+                            {r.gain_pct != null ? ` (${Math.round(r.gain_pct * 100)}%)` : ''}
+                          </span>
+                        </Link>
+                      ))
+                    )}
+                  </div>
+                </Card>
+                <Card>
+                  <CardHeader title="Worst performers" subtitle="Lowest unrealized gain" />
+                  <div className="mt-4 space-y-2">
+                    {value.worstPerformers.length === 0 ? (
+                      <div className="text-sm text-fg-muted">No valued cards yet.</div>
+                    ) : (
+                      value.worstPerformers.map((r) => (
+                        <Link
+                          key={r.card_id}
+                          href={`/cards/${r.card_id}`}
+                          className="flex items-center justify-between rounded-xl border border-border/70 bg-bg-muted/40 px-3 py-2 text-sm transition hover:bg-bg-elevated/60"
+                        >
+                          <span className="min-w-0 truncate pr-3 font-medium text-fg">{r.label}</span>
+                          <span className="shrink-0 text-xs text-red-200">
+                            {formatUsdFromCents(r.gain_cents)}
+                            {r.gain_pct != null ? ` (${Math.round(r.gain_pct * 100)}%)` : ''}
+                          </span>
+                        </Link>
+                      ))
+                    )}
+                  </div>
+                </Card>
+              </div>
+            </Section>
+          ) : null}
+
           <Section kicker="Section 1" title="Overview">
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <Card>

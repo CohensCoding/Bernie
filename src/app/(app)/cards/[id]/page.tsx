@@ -5,6 +5,7 @@ import { getCardDetail } from '@/lib/db/cards';
 import { formatUsdFromCents } from '@/lib/money';
 import { UploadScreenshots } from '@/components/assets/UploadScreenshots';
 import { CardActions } from '@/components/cards/CardActions';
+import { ValuationPanel } from '@/components/valuation/ValuationPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -162,6 +163,19 @@ export default async function CardDetailPage({ params }: { params: Promise<{ id:
                 <Field label="Team" value={detail.card.team ?? '—'} />
                 <Field label="Set" value={`${detail.card.brand ?? '—'} · ${detail.card.set_name ?? '—'}`} />
                 <Field label="Rarity" value={rarityLabelFor(detail.card)} />
+              </div>
+            </UiCard>
+          </section>
+
+          <section>
+            <UiCard>
+              <CardHeader title="Market value" subtitle="Latest estimate (provider-ready, conservative)" />
+              <div className="mt-5">
+                <ValuationPanel
+                  cardId={detail.card.id}
+                  initial={detail.valuation_current}
+                  costBasisCents={latestTx?.total_cost_cents ?? null}
+                />
               </div>
             </UiCard>
           </section>

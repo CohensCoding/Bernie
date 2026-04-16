@@ -1,9 +1,10 @@
-import type { Card, CardTransaction } from '@/types/db';
+import type { Card, CardTransaction, CardValuationCurrent } from '@/types/db';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 
 export type PortfolioRow = {
   card: Card;
   latestTransaction: CardTransaction | null;
+  valuation_current: CardValuationCurrent | null;
   /**
    * Optional thumbnail URL for list/table rendering.
    * Intentionally null today: we only have screenshot assets which look random as "thumbnails".
@@ -15,28 +16,125 @@ export type PortfolioRow = {
 export async function getPortfolioRows(): Promise<PortfolioRow[]> {
   const supabase = getSupabaseServerClient();
 
-  const [{ data: cards, error: cardsError }, { data: txs, error: txError }] = await Promise.all([
+  const [{ data: cards, error: cardsError }, { data: txs, error: txError }, { data: vals, error: valError }] = await Promise.all([
     supabase.from('cards').select('*').order('created_at', { ascending: false }),
     supabase
       .from('card_transactions')
       .select('*')
       .order('purchase_date', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false }),
+    supabase.from('card_valuations_current').select('*'),
   ]);
 
   if (cardsError) throw new Error(cardsError.message);
   if (txError) throw new Error(txError.message);
+  if (valError) throw new Error(valError.message);
 
   const latestByCard = new Map<string, CardTransaction>();
   for (const tx of (txs ?? []) as CardTransaction[]) {
     if (!latestByCard.has(tx.card_id)) latestByCard.set(tx.card_id, tx);
   }
 
+  const valuationByCard = new Map<string, CardValuationCurrent>();
+  for (const v of (vals ?? []) as CardValuationCurrent[]) {
+    if (!valuationByCard.has(v.card_id)) valuationByCard.set(v.card_id, v);
+  }
+
   return ((cards ?? []) as Card[]).map((card) => ({
     card,
     latestTransaction: latestByCard.get(card.id) ?? null,
+    valuation_current: valuationByCard.get(card.id) ?? null,
     thumb_signed_url: null,
   }));
+}
+
+export type PortfolioValueSummary = {
+  totalCostBasisCents: number;
+  totalEstimatedValueCents: number;
+  unrealizedGainCents: number;
+  unrealizedGainPct: number | null;
+  bestPerformers: Array<{
+    card_id: string;
+    label: string;
+    gain_cents: number;
+    gain_pct: number | null;
+  }>;
+  worstPerformers: Array<{
+    card_id: string;
+    label: string;
+    gain_cents: number;
+    gain_pct: number | null;
+  }>;
+};
+
+function labelForCard(c: Card) {
+  return [c.year, c.brand, c.set_name, c.player_name].filter(Boolean).join(' ') || c.title_raw || 'Card';
+}
+
+export async function getPortfolioValueSummary(): Promise<PortfolioValueSummary> {
+  const supabase = getSupabaseServerClient();
+
+  const [{ data: cards, error: cardsError }, { data: txs, error: txError }, { data: vals, error: valError }] = await Promise.all([
+    supabase.from('cards').select('*'),
+    supabase
+      .from('card_transactions')
+      .select('*')
+      .order('purchase_date', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false }),
+    supabase.from('card_valuations_current').select('*'),
+  ]);
+  if (cardsError) throw new Error(cardsError.message);
+  if (txError) throw new Error(txError.message);
+  if (valError) throw new Error(valError.message);
+
+  const cardList = (cards ?? []) as Card[];
+  const txList = (txs ?? []) as CardTransaction[];
+  const valList = (vals ?? []) as CardValuationCurrent[];
+
+  const latestByCard = new Map<string, CardTransaction>();
+  for (const tx of txList) {
+    if (!latestByCard.has(tx.card_id)) latestByCard.set(tx.card_id, tx);
+  }
+  const valByCard = new Map<string, CardValuationCurrent>();
+  for (const v of valList) {
+    if (!valByCard.has(v.card_id)) valByCard.set(v.card_id, v);
+  }
+
+  let totalCostBasisCents = 0;
+  let totalEstimatedValueCents = 0;
+
+  const perf: Array<{ card_id: string; label: string; gain_cents: number; gain_pct: number | null }> = [];
+
+  for (const c of cardList) {
+    const tx = latestByCard.get(c.id) ?? null;
+    if (tx) totalCostBasisCents += tx.total_cost_cents ?? 0;
+
+    const v = valByCard.get(c.id) ?? null;
+    const mid = v?.status === 'ok' ? (v.mid_cents ?? null) : null;
+    if (mid != null) totalEstimatedValueCents += mid;
+
+    if (tx && mid != null) {
+      const gain = mid - (tx.total_cost_cents ?? 0);
+      const pct = (tx.total_cost_cents ?? 0) > 0 ? gain / (tx.total_cost_cents ?? 0) : null;
+      perf.push({ card_id: c.id, label: labelForCard(c), gain_cents: gain, gain_pct: pct });
+    }
+  }
+
+  perf.sort((a, b) => b.gain_cents - a.gain_cents);
+  const bestPerformers = perf.slice(0, 5);
+  const worstPerformers = [...perf].reverse().slice(0, 5);
+
+  const unrealizedGainCents = totalEstimatedValueCents - totalCostBasisCents;
+  const unrealizedGainPct = totalCostBasisCents > 0 ? unrealizedGainCents / totalCostBasisCents : null;
+
+  return {
+    totalCostBasisCents,
+    totalEstimatedValueCents,
+    unrealizedGainCents,
+    unrealizedGainPct,
+    bestPerformers,
+    worstPerformers,
+  };
 }
 
 export type DashboardKpis = {

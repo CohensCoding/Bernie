@@ -1,17 +1,22 @@
-import type { Card, CardAsset, CardTransaction } from '@/types/db';
+import type { Card, CardAsset, CardTransaction, CardValuationCurrent } from '@/types/db';
 import { getSupabaseServerClient } from '@/lib/supabase/server';
 
 export type CardDetail = {
   card: Card;
   transactions: CardTransaction[];
   assets: Array<CardAsset & { signed_url?: string | null }>;
+  valuation_current: CardValuationCurrent | null;
 };
 
 export async function getCardDetail(cardId: string): Promise<CardDetail | null> {
   const supabase = getSupabaseServerClient();
 
-  const { data: card, error: cardError } = await supabase.from('cards').select('*').eq('id', cardId).maybeSingle();
+  const [{ data: card, error: cardError }, { data: val, error: valError }] = await Promise.all([
+    supabase.from('cards').select('*').eq('id', cardId).maybeSingle(),
+    supabase.from('card_valuations_current').select('*').eq('card_id', cardId).maybeSingle(),
+  ]);
   if (cardError) throw new Error(cardError.message);
+  if (valError) throw new Error(valError.message);
   if (!card) return null;
 
   const { data: txs, error: txError } = await supabase
@@ -43,6 +48,7 @@ export async function getCardDetail(cardId: string): Promise<CardDetail | null> 
     card: card as Card,
     transactions: (txs ?? []) as CardTransaction[],
     assets: assetsWithUrls,
+    valuation_current: (val ?? null) as CardValuationCurrent | null,
   };
 }
 

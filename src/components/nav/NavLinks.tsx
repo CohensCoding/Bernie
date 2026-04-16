@@ -44,10 +44,11 @@ export function NavLinks() {
         })}
       </div>
       <Link
-        href="/ingest/new"
+        href="/add"
         className={cn(
           'shrink-0 rounded-2xl border border-border/80 bg-bg-muted/30 px-3 py-2 text-sm font-medium text-fg transition hover:bg-bg-elevated/40',
-          pathname.startsWith('/ingest') && 'border-accent/35 bg-accent/10 ring-1 ring-accent/20',
+          (pathname === '/add' || pathname.startsWith('/ingest') || pathname.startsWith('/import/ebay')) &&
+            'border-accent/35 bg-accent/10 ring-1 ring-accent/20',
         )}
         aria-label="Add Card"
       >

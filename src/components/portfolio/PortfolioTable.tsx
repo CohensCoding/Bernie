@@ -43,6 +43,11 @@ type ColumnKey =
   | 'platform'
   | 'rarity'
   | 'totalCost'
+  | 'currentValue'
+  | 'gainLoss'
+  | 'gainLossPct'
+  | 'lastUpdated'
+  | 'confidence'
   | 'purchaseDate'
   | 'sport'
   | 'team'
@@ -62,6 +67,11 @@ const DEFAULT_VISIBLE: Record<ColumnKey, boolean> = {
   platform: false,
   rarity: true,
   totalCost: true,
+  currentValue: false,
+  gainLoss: false,
+  gainLossPct: false,
+  lastUpdated: false,
+  confidence: false,
   purchaseDate: true,
   sport: false,
   team: false,
@@ -79,6 +89,11 @@ const COLUMN_LABELS: Record<ColumnKey, string> = {
   platform: 'Platform',
   rarity: 'Rarity',
   totalCost: 'Total cost',
+  currentValue: 'Current value',
+  gainLoss: 'Gain/Loss $',
+  gainLossPct: 'Gain/Loss %',
+  lastUpdated: 'Last updated',
+  confidence: 'Confidence',
   purchaseDate: 'Date',
   sport: 'Sport',
   team: 'Team',
@@ -96,6 +111,11 @@ const MOBILE_PRIMARY: Record<ColumnKey, boolean> = {
   platform: false,
   rarity: false,
   totalCost: true,
+  currentValue: false,
+  gainLoss: false,
+  gainLossPct: false,
+  lastUpdated: false,
+  confidence: false,
   purchaseDate: true,
   sport: false,
   team: false,
@@ -630,6 +650,11 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
     (visibleCols.platform ? 1 : 0) +
     (visibleCols.rarity ? 1 : 0) +
     (visibleCols.totalCost ? 1 : 0) +
+    (visibleCols.currentValue ? 1 : 0) +
+    (visibleCols.gainLoss ? 1 : 0) +
+    (visibleCols.gainLossPct ? 1 : 0) +
+    (visibleCols.lastUpdated ? 1 : 0) +
+    (visibleCols.confidence ? 1 : 0) +
     (visibleCols.purchaseDate ? 1 : 0) +
     (visibleCols.sport ? 1 : 0) +
     (visibleCols.team ? 1 : 0) +
@@ -1061,6 +1086,11 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                     Total{sortIndicator('totalCost')}
                   </th>
                 ) : null}
+                {visibleCols.currentValue ? <th className="px-3 py-2.5">Value</th> : null}
+                {visibleCols.gainLoss ? <th className="px-3 py-2.5">Gain/Loss</th> : null}
+                {visibleCols.gainLossPct ? <th className="px-3 py-2.5">Gain/Loss %</th> : null}
+                {visibleCols.lastUpdated ? <th className="px-3 py-2.5">Updated</th> : null}
+                {visibleCols.confidence ? <th className="px-3 py-2.5">Conf.</th> : null}
                 {visibleCols.purchaseDate ? (
                   <th className="px-3 py-2.5 cursor-pointer" onClick={() => toggleSort('purchaseDate')}>
                     Date{sortIndicator('purchaseDate')}
@@ -1092,6 +1122,11 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
               {sorted.map((r) => {
                 const c = r.card;
                 const t = r.latestTransaction;
+                const v = r.valuation_current;
+                const mid = v?.mid_cents ?? null;
+                const gain = mid != null && t ? mid - (t.total_cost_cents ?? 0) : null;
+                const gainPct =
+                  gain != null && t && (t.total_cost_cents ?? 0) > 0 ? gain / (t.total_cost_cents ?? 0) : null;
                 const gradeLabel = c.graded ? `${c.grading_company ?? ''} ${c.grade ?? ''}`.trim() : 'Raw';
                 const isSelected = Boolean(selected[c.id]);
                 return (
@@ -1177,6 +1212,35 @@ export function PortfolioTable({ rows }: { rows: PortfolioRow[] }) {
                     {visibleCols.totalCost ? (
                     <td className="px-3 py-2.5 text-sm tabular-nums text-fg whitespace-nowrap">
                         {t ? formatUsdFromCents(t.total_cost_cents) : '—'}
+                      </td>
+                    ) : null}
+                    {visibleCols.currentValue ? (
+                      <td className="px-3 py-2.5 text-sm tabular-nums text-fg whitespace-nowrap">
+                        {mid != null ? formatUsdFromCents(mid) : '—'}
+                      </td>
+                    ) : null}
+                    {visibleCols.gainLoss ? (
+                      <td className="px-3 py-2.5 text-sm tabular-nums whitespace-nowrap">
+                        {gain != null ? (
+                          <span className={gain >= 0 ? 'text-emerald-200' : 'text-red-200'}>{formatUsdFromCents(gain)}</span>
+                        ) : (
+                          <span className="text-fg">—</span>
+                        )}
+                      </td>
+                    ) : null}
+                    {visibleCols.gainLossPct ? (
+                      <td className="px-3 py-2.5 text-sm tabular-nums text-fg whitespace-nowrap">
+                        {gainPct != null ? `${Math.round(gainPct * 100)}%` : '—'}
+                      </td>
+                    ) : null}
+                    {visibleCols.lastUpdated ? (
+                      <td className="px-3 py-2.5 text-sm tabular-nums text-fg whitespace-nowrap">
+                        {v?.last_valued_at ? new Date(v.last_valued_at).toLocaleDateString() : '—'}
+                      </td>
+                    ) : null}
+                    {visibleCols.confidence ? (
+                      <td className="px-3 py-2.5 text-sm tabular-nums text-fg whitespace-nowrap">
+                        {v?.confidence != null ? `${Math.round(v.confidence * 100)}%` : '—'}
                       </td>
                     ) : null}
                     {visibleCols.purchaseDate ? (

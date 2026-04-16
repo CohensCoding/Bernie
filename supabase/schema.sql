@@ -229,5 +229,105 @@ create index if not exists card_assets_card_id_idx on public.card_assets (card_i
 create index if not exists card_assets_transaction_id_idx on public.card_assets (transaction_id);
 create unique index if not exists card_assets_bucket_path_uq on public.card_assets (bucket, path);
 
+-- ==========================================================
+-- Layer 2 foundation: valuations (stubbed, provider-ready)
+-- ==========================================================
+
+create table if not exists public.valuation_runs (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid null,
+  scope text not null default 'single', -- 'single' | 'bulk'
+  status text not null default 'running', -- 'running' | 'ok' | 'failed'
+  started_at timestamptz not null default now(),
+  finished_at timestamptz null,
+  error text null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'valuation_runs_set_updated_at') then
+    create trigger valuation_runs_set_updated_at
+    before update on public.valuation_runs
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
+create table if not exists public.card_valuations_current (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid null,
+  card_id uuid not null references public.cards(id) on delete cascade,
+
+  provider text not null default 'stub',
+  confidence numeric null, -- 0..1
+  status text not null default 'unavailable', -- 'ok' | 'unavailable' | 'error'
+  match_notes text null,
+
+  low_cents int null,
+  mid_cents int null,
+  high_cents int null,
+
+  last_comp_price_cents int null,
+  last_comp_date date null,
+  comp_count int null,
+
+  last_valued_at timestamptz null,
+  last_run_id uuid null references public.valuation_runs(id) on delete set null,
+  last_error text null,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'card_valuations_current_set_updated_at') then
+    create trigger card_valuations_current_set_updated_at
+    before update on public.card_valuations_current
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
+create unique index if not exists card_valuations_current_card_id_uq on public.card_valuations_current (card_id);
+create index if not exists card_valuations_current_last_valued_idx on public.card_valuations_current (last_valued_at);
+create index if not exists card_valuations_current_status_idx on public.card_valuations_current (status);
+
+create table if not exists public.card_valuation_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid null,
+  card_id uuid not null references public.cards(id) on delete cascade,
+  run_id uuid null references public.valuation_runs(id) on delete set null,
+
+  provider text not null default 'stub',
+  confidence numeric null,
+  status text not null default 'unavailable',
+  match_notes text null,
+
+  low_cents int null,
+  mid_cents int null,
+  high_cents int null,
+
+  last_comp_price_cents int null,
+  last_comp_date date null,
+  comp_count int null,
+
+  valued_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+do $$
+begin
+  if not exists (select 1 from pg_trigger where tgname = 'card_valuation_snapshots_set_updated_at') then
+    create trigger card_valuation_snapshots_set_updated_at
+    before update on public.card_valuation_snapshots
+    for each row execute function public.set_updated_at();
+  end if;
+end $$;
+
+create index if not exists card_valuation_snapshots_card_id_idx on public.card_valuation_snapshots (card_id, valued_at desc);
+create index if not exists card_valuation_snapshots_run_id_idx on public.card_valuation_snapshots (run_id);
+
 commit;
 

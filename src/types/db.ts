@@ -107,6 +107,32 @@ export type CardAsset = {
   updated_at: ISOTimestamp;
 };
 
+export type CardValuationCurrent = {
+  id: UUID;
+  owner_id: UUID | null;
+  card_id: UUID;
+
+  provider: string;
+  confidence: number | null;
+  status: 'ok' | 'unavailable' | 'error' | (string & {});
+  match_notes: string | null;
+
+  low_cents: number | null;
+  mid_cents: number | null;
+  high_cents: number | null;
+
+  last_comp_price_cents: number | null;
+  last_comp_date: ISODate | null;
+  comp_count: number | null;
+
+  last_valued_at: ISOTimestamp | null;
+  last_run_id: UUID | null;
+  last_error: string | null;
+
+  created_at: ISOTimestamp;
+  updated_at: ISOTimestamp;
+};
+
 export type CardAssetInsert = Omit<CardAsset, 'id' | 'created_at' | 'updated_at'> & {
   id?: UUID;
   created_at?: ISOTimestamp;
