@@ -11,14 +11,16 @@ export async function valueCardWithProvider(args: {
 }): Promise<ValuationEstimate> {
   const out = await args.provider.valueCard(args.card);
   // Basic sanity: ensure cents are non-negative when present.
-  const clamp = (n: number | null) => (n != null && Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : null);
+  const clampCents = (n: number | null) => (n != null && Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : null);
+  const clampCount = (n: number | null) =>
+    n != null && Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : null;
   return {
     ...out,
-    low_cents: clamp(out.low_cents),
-    mid_cents: clamp(out.mid_cents),
-    high_cents: clamp(out.high_cents),
-    last_comp_price_cents: clamp(out.last_comp_price_cents),
-    comp_count: out.comp_count != null ? clamp(out.comp_count) : null,
+    low_cents: clampCents(out.low_cents),
+    mid_cents: clampCents(out.mid_cents),
+    high_cents: clampCents(out.high_cents),
+    last_comp_price_cents: clampCents(out.last_comp_price_cents),
+    comp_count: clampCount(out.comp_count),
   };
 }
 
