@@ -549,3 +549,37 @@ export const ebaySoldValuationProvider: ValuationProvider = {
     }
   },
 };
+
+/**
+ * Layer 2 wrapper export.
+ *
+ * Exposes the parsed individual scraped rows (title + price + sold caption)
+ * without going through the aggregating valuation pipeline. Used by
+ * `src/lib/layer2/sources/ebayScrape.ts` to populate `card_comps` rows
+ * tagged `source = 'ebay_scrape'`. These rows are intentionally excluded
+ * from FMV math (see `FMV_ELIGIBLE_SOURCES` in `src/lib/layer2/types.ts`);
+ * they exist for the result UI's "Reference sales (unverified)" section.
+ *
+ * Behavior identical to the internal `fetchSoldRows`. No aggregation, no
+ * scoring, no relevance filtering. The return type is declared inline so
+ * the internal `SoldRow` type need not be exported.
+ *
+ * This is a single, additive export. No existing export or behavior in
+ * this file is modified. The `ebaySoldValuationProvider.valueCard()`
+ * path remains the only consumer of the internal aggregation logic.
+ *
+ * See `docs/LAYER_2_DECISIONS.md` D8 for the rationale of this carve-out
+ * against the otherwise-strict "DO NOT MODIFY Layer 1" rule.
+ */
+export async function fetchSoldRowsRaw(
+  query: string,
+): Promise<
+  Array<{
+    listIndex: number;
+    title: string;
+    priceCents: number;
+    soldCaption: string | null;
+  }>
+> {
+  return fetchSoldRows(query);
+}

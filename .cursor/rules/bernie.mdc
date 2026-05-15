@@ -1,0 +1,94 @@
+---
+description: Bernie project rules — persistent context for all Cursor sessions
+alwaysApply: true
+---
+
+# Bernie — Project Rules
+
+## What Bernie is
+
+Bernie is a multi-layer sports card intelligence platform. The user makes real
+purchase decisions based on its output, including at live card shows.
+Reliability and transparency outrank features, speed, and elegance.
+
+## Stack
+
+Next.js 16 (App Router) · React 19 · TypeScript (strict) · Supabase (Postgres + Storage) ·
+Tailwind · Vercel · OpenAI API for LLM tasks · Ximilar for image identification ·
+eBay APIs (Marketplace Insights when available, Browse as fallback, plus an
+HTML-scrape backstop wrapped from Layer 1's existing provider — scrape is
+display-only, never feeds FMV).
+
+## Layer status
+
+- **Layer 1 — Portfolio tracking** ✅ shipped. DO NOT MODIFY. Lives in
+  `src/app/(app)/dashboard`, `src/app/(app)/portfolio`, related routes under
+  `src/app/api/{cards,assets,import,ingest,export,integrations}`, and the
+  original schema (`cards`, `card_transactions`, `card_assets`, plus eBay
+  integration + import tables). The existing `src/lib/valuation/` module +
+  `card_valuations_current` / `card_valuation_snapshots` / `valuation_runs`
+  tables + `/api/valuations/*` routes are also Layer 1 territory and are
+  left untouched while Layer 2 builds alongside (see
+  `docs/LAYER_2_DECISIONS.md` D1). The ONE approved carve-out is the
+  single additive `fetchSoldRowsRaw` export in
+  `src/lib/valuation/providers/ebaySoldProvider.ts`, locked by a
+  behavior-preservation test (D8). Any further Layer 1 edits require
+  explicit user approval.
+- **Layer 2 — Comp & FMV intelligence** 🚧 in progress. Spec at
+  `docs/LAYER_2_SPEC.md`. Pre-flight decisions at
+  `docs/LAYER_2_DECISIONS.md`. Code lives under `src/lib/layer2/` and
+  `src/app/comp/`. New tables only: `canonical_cards`, `card_aliases`,
+  `card_comps`, `card_fmv`, `card_canonical_links`.
+- **Layer 3 — Forward-facing valuation** ⏳ not started.
+
+## Hard reliability rules (NEVER violate)
+
+1. **FMV is never a single number.** Always include 95% CI, sample size, and
+   date range with equal visual weight.
+2. **Never compute FMV with sample size < 3.** Return `INSUFFICIENT_DATA`.
+3. **Most recent comp > 30 days old → flag STALE prominently in UI.**
+4. **Sale type is data.** Store and weight `bin`, `auction`,
+   `best_offer_accepted`, `unknown` distinctly. BIN weighted lower in FMV math.
+5. **Outlier exclusion must be visible.** Excluded comps shown separately with
+   the reason; never silently dropped.
+6. **Photo-based identification requires user confirmation.** Show top-3
+   candidates. Never auto-select.
+7. **Caching limits:** comps 1h max, FMVs 6h max. Always display `computed_at`.
+8. **All external API calls:** 5s timeout, 1 retry with exponential backoff,
+   graceful degradation. eBay down → show partial data with clear indicator.
+
+## Working agreement
+
+1. **Phase at a time.** Do not begin a phase until the prior phase's
+   acceptance criteria all pass.
+2. **Tests with code, not after.** FMV math especially gets full coverage
+   before any UI is built on top of it.
+3. **Surface issues, don't improvise.** If the spec is wrong or incomplete on
+   anything reliability-critical (FMV math, outlier handling, sale-type
+   weighting, identity confirmation), STOP and ask. Do not silently change
+   methodology.
+4. **No Layer 1 modifications.** Layer 2 is additive. Reads from `cards` use
+   the new `card_canonical_links` join table; writes to Layer 1 tables happen
+   only through existing portfolio routes.
+5. **Methodology versioning.** Any change to FMV math bumps
+   `methodologyVersion` in `card_fmv` (e.g., `v1.0.0` → `v1.1.0`). Never
+   silently change behavior of an existing version.
+6. **Prefer fewer dependencies.** The current stack covers most needs.
+7. **Each phase ends with a report.** Summarize what was built, list any
+   deviations from spec, and wait for user verification before continuing.
+
+## Code conventions
+
+- TypeScript strict mode. No `any` without inline justification.
+- Server-side Supabase access uses the service role key (env, server-only).
+- Money stored as integer cents. Never use floats for prices.
+- Dates as ISO strings on the wire; `timestamptz` or `date` in Postgres.
+- Route handlers in `src/app/**/api/`. Pure logic in `src/lib/layer2/`.
+- No business logic in components.
+
+## When the user asks for something outside spec
+
+If a request would alter FMV methodology, bypass a reliability rule, or modify
+Layer 1, push back briefly and confirm before proceeding. The user has
+explicitly asked for this safety rail — they're making real purchases with
+this tool.

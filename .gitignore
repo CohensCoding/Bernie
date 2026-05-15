@@ -5,3 +5,7 @@ node_modules
 *.tsbuildinfo
 .DS_Store
 .env.local.save
+
+# Cursor agent scratch files
+.cursor/.tmp_*
+.cursor/*.tmp.*
