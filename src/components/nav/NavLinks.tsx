@@ -9,6 +9,7 @@ const TABS = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/cards', label: 'Cards' },
   { href: '/portfolio', label: 'Portfolio' },
+  { href: '/comp', label: 'Comp Lookup' },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -16,6 +17,7 @@ function isActive(pathname: string, href: string) {
   if (href === '/dashboard') return pathname === '/dashboard';
   if (href === '/cards') return pathname === '/cards' || pathname.startsWith('/cards/');
   if (href === '/portfolio') return pathname === '/portfolio';
+  if (href === '/comp') return pathname === '/comp' || pathname.startsWith('/comp/');
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
