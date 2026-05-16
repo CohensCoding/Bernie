@@ -143,6 +143,25 @@ the adapter falls through to Browse and tags rows as `active_listing`
 
 ---
 
+## 2026-05-16 — Phase 2 decision
+
+### D11. Revised interpretation of D7 (**comp-save** scoped)
+
+Context. Decision **D7** assumed the Layer 1 portfolio write path could be **extracted** into one shared helper and
+shared with `POST /api/comp/save`. Bernie Layer 1 currently ships **four** distinct “Add Card” flows (`/add` picker &
+manual paths, ingest, eBay integrations) that are **not unified** — and unifying them is **not** a Phase 2
+deliverable.
+
+Decision (**does not rewrite D7** — it annotates intent for this codebase state). Implement a **new** shared helper
+for the comp-save use case — `createCardWithPurchase` in `src/lib/db/cards.ts` — and call it from **`POST /api/comp/save`**
+only. Existing Layer 1 flows remain untouched. If Layer 1 is ever consolidated, refactoring those paths onto the same
+helper is optional follow-up **once** parity is verified.
+
+Rollback / atomicity notes for consumers live in that function’s **JSDoc** (sequential Supabase calls + manual
+`cards.delete` cleanup — **not** a Postgres transaction).
+
+---
+
 ## Open methodology notes (not changes, just locked-in spec choices)
 
 - **IQR outlier fences are computed on raw `salePriceCents`**, not on
