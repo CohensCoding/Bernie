@@ -1,0 +1,77 @@
+{
+  "draw": 1,
+  "recordsTotal": 1247,
+  "recordsFiltered": 1247,
+  "data": [
+    {
+      "SalePrice": "$1,744.14",
+      "EndDate": "8/12/2021",
+      "GradeString": "7",
+      "HasQualifier": false,
+      "Qualifier": null,
+      "Name": "Mile High Card Company",
+      "AuctionName": "July/August 2021 Auction",
+      "AuctionType": "Auction",
+      "LotNo": "526",
+      "CertNo": "04358855",
+      "URL": "http://milehighcardco.com/example-lot-526.aspx",
+      "ImageURL": "https://s3-us-west-2.amazonaws.com/cu-apr/auctions/example/images/1.jpg"
+    },
+    {
+      "SalePrice": "$4,974.00",
+      "EndDate": "8/12/2021",
+      "GradeString": "8",
+      "HasQualifier": false,
+      "Qualifier": null,
+      "Name": "Mile High Card Company",
+      "AuctionName": "July/August 2021 Auction",
+      "AuctionType": "Auction",
+      "LotNo": "369",
+      "CertNo": "04002835",
+      "URL": "http://milehighcardco.com/example-lot-369.aspx",
+      "ImageURL": "https://s3-us-west-2.amazonaws.com/cu-apr/auctions/example/images/2.jpg"
+    },
+    {
+      "SalePrice": "$1,476.00",
+      "EndDate": "8/11/2021",
+      "GradeString": "6",
+      "HasQualifier": false,
+      "Qualifier": null,
+      "Name": "Goldin Auctions",
+      "AuctionName": "Summer Premium Card and Memorabilia Auction",
+      "AuctionType": "Auction",
+      "LotNo": "1184",
+      "CertNo": "11675193",
+      "URL": "https://goldinauctions.com/LotDetail.aspx?inventoryid=99602",
+      "ImageURL": "https://s3-us-west-2.amazonaws.com/cu-apr/auctions/example/images/3.jpg"
+    },
+    {
+      "SalePrice": "$4,091.41",
+      "EndDate": "8/9/2021",
+      "GradeString": "8",
+      "HasQualifier": false,
+      "Qualifier": null,
+      "Name": "eBay",
+      "AuctionName": "kfinnerty2010",
+      "AuctionType": "Auction",
+      "LotNo": "164969734267",
+      "CertNo": "42276539",
+      "URL": "https://www.ebay.com/itm/164969734267",
+      "ImageURL": "https://d1w8cc2yygc27j.cloudfront.net/example.jpg"
+    },
+    {
+      "SalePrice": "$22,800.00",
+      "EndDate": "7/26/2021",
+      "GradeString": "9",
+      "HasQualifier": false,
+      "Qualifier": null,
+      "Name": "Heritage Auctions",
+      "AuctionName": "Summer Sports Card Catalog Auction",
+      "AuctionType": "Auction",
+      "LotNo": "53857",
+      "CertNo": "30600839",
+      "URL": "https://sports.ha.com/itm/example-53857.s",
+      "ImageURL": "https://s3-us-west-2.amazonaws.com/cu-apr/auctions/example/images/5.jpg"
+    }
+  ]
+}
